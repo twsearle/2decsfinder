@@ -1,0 +1,52 @@
+
+\documentclass[12,a4paper]{article}
+
+%packages
+\usepackage{amsmath}
+
+%my macros
+\newcommand{\dd}[1]{\partial_{#1}}
+\newcommand{\scxx}{\delta c_{xx}}
+\newcommand{\scyy}{\delta c_{yy}}
+\newcommand{\sczz}{\delta c_{zz}}
+\newcommand{\scxy}{\delta c_{xy}}
+\newcommand{\scxz}{\delta c_{xz}}
+\newcommand{\scyz}{\delta c_{yz}}
+\newcommand{\Wi}{\frac{1}{W_{i}}}
+
+\begin{document}
+\title{Linear stability equations}
+\maketitle
+
+\noindent For the Boundary condition on V:
+\begin {align}
+    V(+1) &= \dd{x} \psi(+1) = nkBTOP \cdot \widetilde{\psi_{n}} \\
+	  &= 1 \\
+    V(-1) &= \dd{x} \psi(-1) = nkBBOT \cdot \widetilde{\psi_{n}} \\
+	  &= -1 \\
+    BTOP_{m}  &= (1)^m \\
+    BBOT_{m}  &= (-1)^m
+\end {align}
+for each Fourier mode.
+
+For the Boundary condition on U:
+\begin{align}
+    U(+1) &= -\dd{y} \psi(+1) = KTOP \cdot \widetilde{\psi_{n}} \\
+          &= 1\\
+    U(-1) &= -\dd{y} \psi(-1) = KBOT \cdot \widetilde{\psi_{n}} \\
+          &= -1 \\
+    KTOP_{j}  &= BTOP_{i} \cdot MDY_{i,j} \\
+    KBOT_{j}  &= BBOT_{i} \cdot MDY_{i,j}
+\end{align}
+for each Fourier mode, n.
+
+To set only the imaginary part to zero to fix the phase factor:
+\begin{align}
+    j &= 3(2N+1)M + M-5 \\
+    SPEEDCONDITION &= \delta(j) - \delta(N+j) 
+\end{align}
+Then I set the final row of the jacobian with this vector. I also set the final element of the residuals vector to zero. My intention was to use a Fourier component - its complex conjugate to set the imaginary part to zero. But I am not sure these two components are complex conjugates of one another?
+
+
+
+\end{document}

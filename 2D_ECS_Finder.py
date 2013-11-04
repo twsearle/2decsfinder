@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sun  3 Nov 22:43:40 2013
+#   Last modified: Mon 04 Nov 2013 13:57:33 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -114,12 +114,10 @@ def solve_eq(xVec):
     Txx = oneOverWi * (Cxx - 1.)
     Tyy = oneOverWi * (Cyy - 1.)
     Txy = oneOverWi * Cxy
-    print size(Txy)
-    print size(MDYY)
 
     # Useful Operators
-    U      = -dot(MDY,PSI)
-    V      =  dot(MDX,PSI)
+    U      = - dot(MDY,PSI)
+    V      = + dot(MDX,PSI)
     VGRAD  = dot(U,MDX) + dot(V,MDY)
     MMU    = prod_mat(U)
     MMV    = prod_mat(V)
@@ -137,8 +135,8 @@ def solve_eq(xVec):
     #####psi
     residualsVec[0:vecLen] = Re*Nu*dot(LAPLAC,PSI) \
                             - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
-                            - Re*dot(MMV, dot(MDY,LAPLACPSI))  \
-                            + beta*dot(BIHARM,PSI) \
+                            - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
+                            + beta*dot(BIHARM, PSI) \
                             - (1.-beta)*(dot(MDXX, Txx) + dot(MDXY, (Txy - Txy)) \
                                          - dot(MDYY, Txy))
 
@@ -201,9 +199,9 @@ def solve_eq(xVec):
 
     ###### psi
     ##psi
-    jacobian[0:vecLen, 0:vecLen] = Re*dot(MDX, LAPLAC) \
-                                   - Re*dot(MMU, LAPLAC) \
-                                   - Re*dot(MMV, LAPLAC) \
+    jacobian[0:vecLen, 0:vecLen] =   Nu*Re*dot(MDX, LAPLAC) \
+                                   - Re*dot(dot(MMU, MDX), LAPLAC) \
+                                   - Re*dot(dot(MMV, MDY), LAPLAC) \
                                    - Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
                                    + Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
                                    + beta*BIHARM 
@@ -244,10 +242,10 @@ def solve_eq(xVec):
 
     ###### Cxy
     ##psi
-    jacobian[3*vecLen:4*vecLen, 0:vecLen]   = + dot(prod_mat(dot(MDX, Cyy)), MDY) \
-                                              - dot(prod_mat(dot(MDY, Cyy)), MDX) \
+    jacobian[3*vecLen:4*vecLen, 0:vecLen]   = + dot(prod_mat(dot(MDX, Cxy)), MDY) \
+                                              - dot(prod_mat(dot(MDY, Cxy)), MDX) \
                                               - dot(prod_mat(Cxx), MDYY) \
-                                              + dot(prod_mat(Cyy), MDXY) \
+                                              + dot(prod_mat(Cyy), MDXX) \
     ##cxx
     jacobian[3*vecLen:4*vecLen, vecLen:2*vecLen] = MMDYU
     ##cyy
@@ -286,7 +284,9 @@ outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(N=N, M=M,
 
 vecLen = M*(2*N+1)  
 print "The length of a vector is: ", vecLen
-NuIndx = int(floor(M - 5)) #Choose a high Fourier mode
+print "The size of the jacobian Matrix is: {x} by {y}".format(x=(4*vecLen+1), y=
+                                                             (4*vecLen+1))
+NuIndx = M - 5           #Choose a high Fourier mode
 oneOverWi = 1. / Wi
 # Set the oneOverC function: 1/2 for m=0, 1 elsewhere:
 oneOverC = ones(M)
@@ -312,8 +312,8 @@ xVec[3*vecLen:4*vecLen] = Cxy
 MDY = mk_diff_y()
 MDYY = dot(MDY,MDY)
 MDX = mk_diff_x()
-MDXX = dot(MDX,MDX)
-MDXY = dot(MDX,MDY)
+MDXX = dot(MDX, MDX)
+MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
 BIHARM = dot(LAPLAC, LAPLAC)
 
@@ -336,7 +336,7 @@ del j
 #TODO work out how to set only the imaginary part
 SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
 SPEEDCONDITION[3*vecLen + NuIndx] = 1.
-SPEEDCONDITION[3*vecLen + 2*N + NuIndx] = -1.
+SPEEDCONDITION[3*vecLen + N + NuIndx] = -1.
 
 
 while True:
