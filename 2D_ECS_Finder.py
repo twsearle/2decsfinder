@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sun  3 Nov 21:06:59 2013
+#   Last modified: Sun  3 Nov 22:43:40 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -166,19 +166,19 @@ def solve_eq(xVec):
 
     # dxPsi TODO
     # Not sure if any of this is going to work - at the moment the dxpsi
-    # boundary condition is going into the zeroth mode of psi. Is this ok? Do I
-    # not need to restrict all the modes due to this derivative? 
-
+    # boundary condition is going into the zeroth mode of psi. Is this ok? 
+    # Also, is it right that this BC should consist of me multiplying by
+    # nkx for each fourier mode to get the derivative? check
     residualsVec[N*M + M-2] = dot(BTOP, (PSI[N*M:(N+1)*M] - Cheb0))
     residualsVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M] + Cheb0))
 
     for k in range (N):
-        residualsVec[k*M + M-2] = dot(BTOP, PSI[k*M:k*M + M])
-        residualsVec[k*M + M-1] = dot(BBOT, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-2] = dot((k-N)*kx*BTOP, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-1] = dot((k-N)*kx*BBOT, PSI[k*M:k*M + M])
     del k
     for k in range(N+1, 2*N+1):
-        residualsVec[k*M + M-2] = dot(BTOP, PSI[k*M:k*M + M])
-        residualsVec[k*M + M-1] = dot(BBOT, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-2] = dot((k-N)*kx*BTOP, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-1] = dot((k-N)*kx*BBOT, PSI[k*M:k*M + M])
     del k
 
     #dyPsi BC TODO
@@ -201,12 +201,12 @@ def solve_eq(xVec):
 
     ###### psi
     ##psi
-    jacobian[0:vecLen, 0:vecLen]                      = Re*dot(MDX, LAPLAC) \
-                                  - Re*dot(MMU, LAPLAC) \
-                                  - Re*dot(MMV, LAPLAC) \
-                                  - Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
-                                  + Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
-                                  + beta*BIHARM 
+    jacobian[0:vecLen, 0:vecLen] = Re*dot(MDX, LAPLAC) \
+                                   - Re*dot(MMU, LAPLAC) \
+                                   - Re*dot(MMV, LAPLAC) \
+                                   - Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
+                                   + Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
+                                   + beta*BIHARM 
     ##cxx
     jacobian[0:vecLen, vecLen:2*vecLen] = + (1.-beta)*oneOverWi*MDXY
     ##cyy
@@ -261,12 +261,11 @@ def solve_eq(xVec):
 
     #######apply BC's to jacobian
     # TODO: Check this is the right way to implement the BC's
-    # This doesn't seem like it will set the dirivative of x to be zero?
     for n in range(2*N+1):
         jacobian[n*M + M-2, 0 : 4*vecLen + 1] = \
-            concatenate( (zeros(n*M), BTOP, zeros((2*N-n)*M+3*vecLen+1)) )
+            concatenate( (zeros(n*M), (n-N)*kx*BTOP, zeros((2*N-n)*M+3*vecLen+1)) )
         jacobian[n*M + M-1, 0 : 4*vecLen + 1] = \
-            concatenate( (zeros(n*M), BBOT, zeros((2*N-n)*M+3*vecLen+1)) )
+            concatenate( (zeros(n*M), (n-N)*kx*BBOT, zeros((2*N-n)*M+3*vecLen+1)) )
 
         jacobian[n*M + M-4, 0:4*vecLen + 1] = \
             concatenate( (zeros(n*M), DERIVTOP, zeros((2*N-n)*M+3*vecLen+1)) )
