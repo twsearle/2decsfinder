@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon 04 Nov 2013 13:57:33 GMT
+#   Last modified: Mon  4 Nov 22:31:49 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -11,6 +11,7 @@ Newton-Rhaphson and the Oldroyd-B model."""
 #MODULES
 from scipy import *
 from scipy import linalg
+import matplotlib.pyplot as plt
 import cPickle as pickle
 
 #SETTINGS----------------------------------------
@@ -156,7 +157,11 @@ def solve_eq(xVec):
                                       + dot(MMDXV, Cyy) - Txy
 
     #####Nu
-    residualsVec[vecLen] = Cxy[NuIndx] - Cxy[2*N + NuIndx]
+    residualsVec[4*vecLen] = Cxy[NuIndx] - Cxy[-NuIndx]
+
+    #####u0
+    residualsVec[N*M:(N+1)*M] = beta*dot(singleDYY,PSI[N*M:(N+1)*M]) \
+                         + (1.-beta)*oneOverWi*dot(singleDY,Cxy[N*M:(N+1)*M])
 
     ##### Apply boundary conditions to residuals vector
     Cheb0 = zeros(M, dtype='complex')
@@ -185,12 +190,12 @@ def solve_eq(xVec):
     residualsVec[N*M + M-4] = dot(DERIVTOP, (PSI[N*M:(N+1)*M] - Cheb0))
     residualsVec[N*M + M-3] = dot(DERIVBOT, (PSI[N*M:(N+1)*M] + Cheb0))
     for k in range (N):
-        residualsVec[k*M + M-4] = dot(DERIVTOP, PSI[k*M:k*M + M])
-        residualsVec[k*M + M-3] = dot(DERIVBOT, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-4] = dot(-DERIVTOP, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-3] = dot(-DERIVBOT, PSI[k*M:k*M + M])
     del k
     for k in range(N+1, 2*N+1):
-        residualsVec[k*M + M-4] = dot(DERIVTOP, PSI[k*M:k*M + M])
-        residualsVec[k*M + M-3] = dot(DERIVBOT, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-4] = dot(-DERIVTOP, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-3] = dot(-DERIVBOT, PSI[k*M:k*M + M])
     del k
 
     #################SET THE JACOBIAN MATRIX####################
@@ -210,7 +215,9 @@ def solve_eq(xVec):
     ##cyy
     jacobian[0:vecLen, 2*vecLen:3*vecLen] = - (1.-beta)*oneOverWi*MDXY
     ##cxy
-    jacobian[0:vecLen, 2*vecLen:3*vecLen] = + (1.-beta)*oneOverWi*(MDYY - MDXX)
+    jacobian[0:vecLen, 3*vecLen:4*vecLen] = + (1.-beta)*oneOverWi*(MDYY - MDXX)
+    ##Nu
+    jacobian[0:vecLen, 4*vecLen] = Re*dot(MDX, LAPLACPSI)
 
     ###### Cxx
     ##psi                                   - dv.grad cxx
@@ -224,7 +231,9 @@ def solve_eq(xVec):
     ##cyy
     jacobian[vecLen:2*vecLen, 2*vecLen:3*vecLen] = 0
     ##cxy
-    jacobian[vecLen:2*vecLen, 2*vecLen:3*vecLen] = 2.*MMDXV
+    jacobian[vecLen:2*vecLen, 3*vecLen:4*vecLen] = 2.*MMDXV
+    ##Nu
+    jacobian[vecLen:2*vecLen, 4*vecLen] = Re*dot(MDX, Cxx) 
 
     ###### Cyy
     ##psi
@@ -238,7 +247,9 @@ def solve_eq(xVec):
     jacobian[2*vecLen:3*vecLen, 2*vecLen:3*vecLen] = Nu*MDX - VGRAD \
                                                     + 2.*MMDYV - oneOverWi*II
     ##cxy
-    jacobian[2*vecLen:3*vecLen, 2*vecLen:3*vecLen] = 2.*MMDYU
+    jacobian[2*vecLen:3*vecLen, 3*vecLen:4*vecLen] = 2.*MMDYU
+    ##Nu
+    jacobian[2*vecLen:3*vecLen, 4*vecLen] = Re*dot(MDX, Cyy) 
 
     ###### Cxy
     ##psi
@@ -251,14 +262,24 @@ def solve_eq(xVec):
     ##cyy
     jacobian[3*vecLen:4*vecLen, 2*vecLen:3*vecLen] = MMDXV
     ##cxy
-    jacobian[3*vecLen:4*vecLen, 2*vecLen:3*vecLen] = Nu*MDX - VGRAD \
+    jacobian[3*vecLen:4*vecLen, 3*vecLen:4*vecLen] = Nu*MDX - VGRAD \
                                                      - oneOverWi*II
+    ##Nu
+    jacobian[3*vecLen:4*vecLen, 4*vecLen] = Re*dot(MDX, Cxy) 
+
     ###### Nu
     #how to set only the imaginary part of this in the jacobian?
-    jacobian[4*vecLen] = SPEEDCONDITION
+    jacobian[4*vecLen,:] = SPEEDCONDITION
+
+    ###### U0 equation
+    #u0
+    jacobian[N*M:(N+1)*M, N*M:(N+1)*M] = beta*singleDYY
+    #cxy
+    jacobian[N*M:(N+1)*M, 3*vecLen + N*M:3*vecLen + (N+1)*M] = \
+                                                    (1-beta)*oneOverWi*singleDY
 
     #######apply BC's to jacobian
-    # TODO: Check this is the right way to implement the BC's
+
     for n in range(2*N+1):
         jacobian[n*M + M-2, 0 : 4*vecLen + 1] = \
             concatenate( (zeros(n*M), (n-N)*kx*BTOP, zeros((2*N-n)*M+3*vecLen+1)) )
@@ -266,12 +287,19 @@ def solve_eq(xVec):
             concatenate( (zeros(n*M), (n-N)*kx*BBOT, zeros((2*N-n)*M+3*vecLen+1)) )
 
         jacobian[n*M + M-4, 0:4*vecLen + 1] = \
-            concatenate( (zeros(n*M), DERIVTOP, zeros((2*N-n)*M+3*vecLen+1)) )
+            concatenate( (zeros(n*M), -DERIVTOP, zeros((2*N-n)*M+3*vecLen+1)) )
         jacobian[n*M + M-3, 0:4*vecLen + 1] = \
-            concatenate( (zeros(n*M), DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
+            concatenate( (zeros(n*M), -DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
     del n
 
 
+    print "The jacobian determinant is ", linalg.det(jacobian)
+    print "If true there is a zero row: ", any(all(jacobian, axis=0)) 
+    print "If true there is a zero col: ", any(all(jacobian, axis=1)) 
+    plt.figure()
+    plt.imshow(log(real(jacobian*conjugate(jacobian))))
+    plt.show()
+    exit(1)
     return(jacobian, residualsVec)
 
 #MAIN
@@ -295,11 +323,11 @@ oneOverC[0] = 1. / 2.
 CFunc = ones(M)
 CFunc[0] = 2.
 
-PSI = zeros(vecLen, dtype='complex')
-Cxx = zeros(vecLen, dtype='complex')
-Cyy = zeros(vecLen, dtype='complex')
-Cxy = zeros(vecLen, dtype='complex')
-Nu  = 0
+PSI = ones(vecLen, dtype='complex')
+Cxx = ones(vecLen, dtype='complex')
+Cyy = ones(vecLen, dtype='complex')
+Cxy = ones(vecLen, dtype='complex')
+Nu  = 1
 
 xVec = zeros((4*vecLen + 1), dtype='complex')
 xVec[0:vecLen]          = PSI
@@ -326,6 +354,7 @@ BBOT = ones(M)
 BBOT[1:M:2] = -1
 
 singleDY = mk_single_diffy()
+singleDYY = dot(singleDY,singleDY)
 DERIVTOP = zeros((M), dtype='complex')
 DERIVBOT = zeros((M), dtype='complex')
 for j in range(M):
@@ -336,7 +365,7 @@ del j
 #TODO work out how to set only the imaginary part
 SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
 SPEEDCONDITION[3*vecLen + NuIndx] = 1.
-SPEEDCONDITION[3*vecLen + N + NuIndx] = -1.
+SPEEDCONDITION[4*vecLen - NuIndx] = -1.
 
 
 while True:
