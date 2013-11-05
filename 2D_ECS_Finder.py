@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon  4 Nov 22:31:49 2013
+#   Last modified: Tue  5 Nov 12:11:04 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -128,6 +128,10 @@ def solve_eq(xVec):
     MMDYV  = prod_mat(dot(MDY,V))
 
     LAPLACPSI = dot(LAPLAC, PSI)
+    MMDXPSI   = prod_mat(dot(MDX, LAPLACPSI))
+    MMDXCXX   = prod_mat(dot(MDX, Cxx))
+    MMDXCYY   = prod_mat(dot(MDX, Cyy))
+    MMDXCXY   = prod_mat(dot(MDX, Cxy))
 
     #######calculate the Residuals########
 
@@ -167,13 +171,13 @@ def solve_eq(xVec):
     Cheb0 = zeros(M, dtype='complex')
     Cheb0[0] = 1
 
-    # dxPsi TODO
+    # dxPsi = 0 BC TODO
     # Not sure if any of this is going to work - at the moment the dxpsi
     # boundary condition is going into the zeroth mode of psi. Is this ok? 
     # Also, is it right that this BC should consist of me multiplying by
     # nkx for each fourier mode to get the derivative? check
-    residualsVec[N*M + M-2] = dot(BTOP, (PSI[N*M:(N+1)*M] - Cheb0))
-    residualsVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M] + Cheb0))
+    residualsVec[N*M + M-2] = dot(BTOP, (PSI[N*M:(N+1)*M]))
+    residualsVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M]))
 
     for k in range (N):
         residualsVec[k*M + M-2] = dot((k-N)*kx*BTOP, PSI[k*M:k*M + M])
@@ -184,7 +188,7 @@ def solve_eq(xVec):
         residualsVec[k*M + M-1] = dot((k-N)*kx*BBOT, PSI[k*M:k*M + M])
     del k
 
-    #dyPsi BC TODO
+    #dyPsi(+-1) = +-1 BC TODO
     # to set the derivative, must restrict every Fourier mode?
 
     residualsVec[N*M + M-4] = dot(DERIVTOP, (PSI[N*M:(N+1)*M] - Cheb0))
@@ -217,7 +221,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[0:vecLen, 3*vecLen:4*vecLen] = + (1.-beta)*oneOverWi*(MDYY - MDXX)
     ##Nu
-    jacobian[0:vecLen, 4*vecLen] = Re*dot(MDX, LAPLACPSI)
+    jacobian[0:vecLen, 4*vecLen] = Re*MMDXPSI[:, N*M]
 
     ###### Cxx
     ##psi                                   - dv.grad cxx
@@ -233,7 +237,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[vecLen:2*vecLen, 3*vecLen:4*vecLen] = 2.*MMDXV
     ##Nu
-    jacobian[vecLen:2*vecLen, 4*vecLen] = Re*dot(MDX, Cxx) 
+    jacobian[vecLen:2*vecLen, 4*vecLen] = Re*MMDXCXX[:, N*M] 
 
     ###### Cyy
     ##psi
@@ -249,7 +253,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[2*vecLen:3*vecLen, 3*vecLen:4*vecLen] = 2.*MMDYU
     ##Nu
-    jacobian[2*vecLen:3*vecLen, 4*vecLen] = Re*dot(MDX, Cyy) 
+    jacobian[2*vecLen:3*vecLen, 4*vecLen] = Re*MMDXCYY[:, N*M] 
 
     ###### Cxy
     ##psi
@@ -265,7 +269,7 @@ def solve_eq(xVec):
     jacobian[3*vecLen:4*vecLen, 3*vecLen:4*vecLen] = Nu*MDX - VGRAD \
                                                      - oneOverWi*II
     ##Nu
-    jacobian[3*vecLen:4*vecLen, 4*vecLen] = Re*dot(MDX, Cxy) 
+    jacobian[3*vecLen:4*vecLen, 4*vecLen] = Re*MMDXCXY[:,N*M] 
 
     ###### Nu
     #how to set only the imaginary part of this in the jacobian?
@@ -281,6 +285,7 @@ def solve_eq(xVec):
     #######apply BC's to jacobian
 
     for n in range(2*N+1):
+        if n == N: continue     # Don't apply bc to psi0 mode
         jacobian[n*M + M-2, 0 : 4*vecLen + 1] = \
             concatenate( (zeros(n*M), (n-N)*kx*BTOP, zeros((2*N-n)*M+3*vecLen+1)) )
         jacobian[n*M + M-1, 0 : 4*vecLen + 1] = \
