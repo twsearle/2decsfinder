@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue  5 Nov 12:11:04 2013
+#   Last modified: Wed  6 Nov 11:01:10 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -16,8 +16,8 @@ import cPickle as pickle
 
 #SETTINGS----------------------------------------
 
-N = 10              # Number of Fourier modes
-M = 20              # Number of Chebychevs (>6)
+N = 5              # Number of Fourier modes
+M = 6              # Number of Chebychevs (>6)
 Wi = 0.01           # The Weissenberg number
 Re = 10.0           # The Reynold's number
 beta = 0.1
@@ -119,9 +119,9 @@ def solve_eq(xVec):
     # Useful Operators
     U      = - dot(MDY,PSI)
     V      = + dot(MDX,PSI)
-    VGRAD  = dot(U,MDX) + dot(V,MDY)
     MMU    = prod_mat(U)
     MMV    = prod_mat(V)
+    VGRAD  = dot(MMU,MDX) + dot(MMV,MDY)
     MMDXU  = prod_mat(dot(MDX,U))
     MMDXV  = prod_mat(dot(MDX,V))
     MMDYU  = prod_mat(dot(MDY,U))
@@ -138,7 +138,7 @@ def solve_eq(xVec):
     residualsVec = zeros((4*vecLen + 1), dtype='complex')
 
     #####psi
-    residualsVec[0:vecLen] = Re*Nu*dot(LAPLAC,PSI) \
+    residualsVec[0:vecLen] =  Re*Nu*dot(LAPLAC,PSI) \
                             - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
                             - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
                             + beta*dot(BIHARM, PSI) \
@@ -163,9 +163,11 @@ def solve_eq(xVec):
     #####Nu
     residualsVec[4*vecLen] = Cxy[NuIndx] - Cxy[-NuIndx]
 
-    #####u0
-    residualsVec[N*M:(N+1)*M] = beta*dot(singleDYY,PSI[N*M:(N+1)*M]) \
-                         + (1.-beta)*oneOverWi*dot(singleDY,Cxy[N*M:(N+1)*M])
+    #####psi0
+    residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
+                                + beta*dot(MDYY, PSI)[N*M:(N+1)*M] \
+                                + (1-beta)*oneOverWi*Cxy[N*M:(N+1)*M]
+
 
     ##### Apply boundary conditions to residuals vector
     Cheb0 = zeros(M, dtype='complex')
@@ -221,7 +223,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[0:vecLen, 3*vecLen:4*vecLen] = + (1.-beta)*oneOverWi*(MDYY - MDXX)
     ##Nu
-    jacobian[0:vecLen, 4*vecLen] = Re*MMDXPSI[:, N*M]
+    jacobian[0:vecLen, 4*vecLen] = Re*dot(MDX, LAPLACPSI)
 
     ###### Cxx
     ##psi                                   - dv.grad cxx
@@ -237,7 +239,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[vecLen:2*vecLen, 3*vecLen:4*vecLen] = 2.*MMDXV
     ##Nu
-    jacobian[vecLen:2*vecLen, 4*vecLen] = Re*MMDXCXX[:, N*M] 
+    jacobian[vecLen:2*vecLen, 4*vecLen] = Re*dot(MDX, Cxx) 
 
     ###### Cyy
     ##psi
@@ -253,7 +255,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[2*vecLen:3*vecLen, 3*vecLen:4*vecLen] = 2.*MMDYU
     ##Nu
-    jacobian[2*vecLen:3*vecLen, 4*vecLen] = Re*MMDXCYY[:, N*M] 
+    jacobian[2*vecLen:3*vecLen, 4*vecLen] = Re*dot(MDX, Cyy)
 
     ###### Cxy
     ##psi
@@ -269,42 +271,77 @@ def solve_eq(xVec):
     jacobian[3*vecLen:4*vecLen, 3*vecLen:4*vecLen] = Nu*MDX - VGRAD \
                                                      - oneOverWi*II
     ##Nu
-    jacobian[3*vecLen:4*vecLen, 4*vecLen] = Re*MMDXCXY[:,N*M] 
+    jacobian[3*vecLen:4*vecLen, 4*vecLen] = Re*dot(MDX, Cxy)
 
     ###### Nu
-    #how to set only the imaginary part of this in the jacobian?
-    jacobian[4*vecLen,:] = SPEEDCONDITION
+    jacobian[4*vecLen, : ] = SPEEDCONDITION
 
     ###### U0 equation
-    #u0
-    jacobian[N*M:(N+1)*M, N*M:(N+1)*M] = beta*singleDYY
-    #cxy
-    jacobian[N*M:(N+1)*M, 3*vecLen + N*M:3*vecLen + (N+1)*M] = \
-                                                    (1-beta)*oneOverWi*singleDY
+    #set row to zero
+    jacobian[N*M:(N+1)*M, :] = 0
+    ##u0
+    jacobian[N*M:(N+1)*M, 0:vecLen] = \
+                            - dot(prod_mat(dot(MDXY, PSI)), MDY)[N*M:(N+1)*M, :] \
+                            - dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
+                            + beta*MDYY[N*M:(N+1)*M, :]
+    ##cxx
+    jacobian[N*M:(N+1)*M, vecLen:2*vecLen] = 0
+    ##cyy
+    jacobian[N*M:(N+1)*M, 2*vecLen:3*vecLen] = 0
+    ##cxy
+    jacobian[N*M:(N+1)*M, 3*vecLen:4*vecLen] = \
+                                            + (1-beta)*oneOverWi*II[N*M:(N+1)*M, :]
+    ##nu
+    jacobian[N*M:(N+1)*M, 4*vecLen] = 0
+
 
     #######apply BC's to jacobian
 
+    # Apply BC to zeroth mode
+    # dypsi0 = const
+    jacobian[N*M + M-2, 0:4*vecLen + 1] = \
+        concatenate( (zeros(N*M), -DERIVTOP, zeros(N*M+3*vecLen+1)) )
+    jacobian[N*M + M-1, 0:4*vecLen + 1] = \
+        concatenate( (zeros(N*M), -DERIVBOT, zeros(N*M+3*vecLen+1)) )
+
     for n in range(2*N+1):
-        if n == N: continue     # Don't apply bc to psi0 mode
+        if n == N: continue     # Don't apply bcs to psi0 mode here
+        # dxpsi = 0
         jacobian[n*M + M-2, 0 : 4*vecLen + 1] = \
             concatenate( (zeros(n*M), (n-N)*kx*BTOP, zeros((2*N-n)*M+3*vecLen+1)) )
         jacobian[n*M + M-1, 0 : 4*vecLen + 1] = \
             concatenate( (zeros(n*M), (n-N)*kx*BBOT, zeros((2*N-n)*M+3*vecLen+1)) )
-
+        # -dypsi = const
         jacobian[n*M + M-4, 0:4*vecLen + 1] = \
             concatenate( (zeros(n*M), -DERIVTOP, zeros((2*N-n)*M+3*vecLen+1)) )
         jacobian[n*M + M-3, 0:4*vecLen + 1] = \
             concatenate( (zeros(n*M), -DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
     del n
 
-
     print "The jacobian determinant is ", linalg.det(jacobian)
-    print "If true there is a zero row: ", any(all(jacobian, axis=0)) 
-    print "If true there is a zero col: ", any(all(jacobian, axis=1)) 
+    zeroColCond = any(jacobian, axis=0)
+    print "If false there is a zero col: ", all(zeroColCond)
+    zeroColsIndxs = nonzero(invert(zeroColCond))
+    print "The indices of the zero cols: ", zeroColsIndxs
+    cIndx = zeroColsIndxs
+    savetxt("zeroCols.dat", jacobian[zeroColsIndxs].T)
+    print "sum over the first zero col check, ", sum(jacobian[:,cIndx[0]])
+    print "Col Indx divided by vecLen", double(cIndx)/vecLen
+
+    zeroRowCond = any(jacobian, axis=1) 
+    print "If false there is a zero row: ", all(zeroRowCond)
+    zeroRowsIndxs = nonzero(invert(zeroRowCond))
+    print "The indices of the zero rows: ", zeroRowsIndxs
+    rIndx = zeroRowsIndxs
+    savetxt("zeroRows.dat", jacobian.T[zeroRowsIndxs].T)
+    print "sum over the first zero row check, ", \
+            sum(jacobian[rIndx[0],:])
+    print "Row Indx divided by vecLen", double(rIndx)/vecLen
     plt.figure()
     plt.imshow(log(real(jacobian*conjugate(jacobian))))
     plt.show()
     exit(1)
+
     return(jacobian, residualsVec)
 
 #MAIN
@@ -333,6 +370,11 @@ Cxx = ones(vecLen, dtype='complex')
 Cyy = ones(vecLen, dtype='complex')
 Cxy = ones(vecLen, dtype='complex')
 Nu  = 1
+#PSI = zeros(vecLen, dtype='complex')
+#Cxx = zeros(vecLen, dtype='complex')
+#Cyy = zeros(vecLen, dtype='complex')
+#Cxy = zeros(vecLen, dtype='complex')
+#Nu  = 0
 
 xVec = zeros((4*vecLen + 1), dtype='complex')
 xVec[0:vecLen]          = PSI
@@ -359,7 +401,6 @@ BBOT = ones(M)
 BBOT[1:M:2] = -1
 
 singleDY = mk_single_diffy()
-singleDYY = dot(singleDY,singleDY)
 DERIVTOP = zeros((M), dtype='complex')
 DERIVBOT = zeros((M), dtype='complex')
 for j in range(M):
@@ -371,7 +412,6 @@ del j
 SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
 SPEEDCONDITION[3*vecLen + NuIndx] = 1.
 SPEEDCONDITION[4*vecLen - NuIndx] = -1.
-
 
 while True:
     (J_x0, f_x0) = solve_eq(xVec)
