@@ -63,8 +63,8 @@
 \subsection{$\psi_{0}$}
 
 \begin{align}
-    0 &= - \overline{(\dd{y}\psi)(\dd{x}\psi)} - \overline{(\dd{x}\psi)(\dd{y}\psi)} \nonumber\\
-    &+ \beta \overline{\dd{yy}\psi} + \frac{(1-\beta)}{\Wi}\overline{\dd{y}C_{xy}}
+    0 &= - \Rey \overline{(\dd{y}\psi)\dd{xy}\psi} + \Rey \overline{(\dd{x}\psi)\dd{yy}\psi} \nonumber\\
+    &+ \beta \overline{\dd{yyy}\psi} + \frac{(1-\beta)}{\Wi}\overline{\dd{y}C_{xy}}
 \end{align}
 
 \section{The 1st order terms in a Taylor expansion}
@@ -72,7 +72,7 @@
 These are the equations as they will need to be entered into the Jacobian matrix.
 
 \begin{align}
-\psi = \Psi + \spsi
+\psi = \Psi + \spsi \\
 C_{ij} = C_{ij} +\scij
 \end{align}
 
@@ -80,7 +80,7 @@ C_{ij} = C_{ij} +\scij
 
 \begin{align}
     0 &= \nu\Rey\dd{x}\lpl\spsi +  \Rey (\lpl\Psi) \dd{y}\spsi - \Rey U \dd{x}\lpl \spsi \nonumber\\
-    &- \Rey (\dd{y}\lpl \Psi) \dd{x} \spsi - \Re V \dd{y} \lpl \spsi + \beta \bih \spsi \nonumber\\
+    &- \Rey (\dd{y}\lpl \Psi) \dd{x} \spsi - \Rey V \dd{y} \lpl \spsi + \beta \bih \spsi \nonumber\\
     &- \frac{(1-\beta)}{\Wi} \left( \dd{xx} \scxy +\dd{yy} (\scyy -\scxx) - \dd{yy} \scxy \right)
 \end{align}
 
@@ -98,8 +98,8 @@ C_{ij} = C_{ij} +\scij
 \begin{align}
     0 &= \nu \dd{x} \scyy - (\mathbf{V}\cdot \nabla) \scyy \nonumber \\
     &+ (\dd{x}C_{yy})\dd{y}\spsi - (\dd{y}C_{yy})\dd{x} \spsi \nonumber\\
-    &+ 2(\dd{y}U)\scxy + 2(\dd{y}V)\scyy - (\dd{x}C_{yy})\dd{y}\spsi \nonumber \\
-    &- C_{xy}\dd{yy}\spsi + c_{yy}\dd{xy} \spsi - \frac{\scyy}{\Wi} 
+    &+ 2(\dd{y}U)\scxy + 2(\dd{y}V)\scyy \nonumber \\
+    &- C_{xy}\dd{yy}\spsi + C_{yy}\dd{xy} \spsi - \frac{\scyy}{\Wi} 
 \end{align}
 
 \subsection{$C_{xy}$}
@@ -107,14 +107,15 @@ C_{ij} = C_{ij} +\scij
 \begin{align}
     0 &= \nu \dd{x} \scxy - (\mathbf{V}\cdot \nabla) \scxy \nonumber \\
     &+ (\dd{x}C_{xy})\dd{y}\spsi - (\dd{y}C_{xy})\dd{x} \spsi \nonumber\\
-    &+ (\dd{x}C_{xy})\dd{y}\spsi - (\dd{y}C_{xy})\dd{x} \spsi \nonumber \\
+    &+ (\dd{y}U) \scxx + (\dd{x}V) \scyy \nonumber \\
     &- C_{xx}\dd{yy} \spsi + C_{yy} \dd{xx} \spsi - \frac{\scxy}{\Wi}
 \end{align}
 
 \subsection{$\psi_{0}$}
 
 \begin{align}
-    0 &= - \overline{(\dd{xy}\Psi) \spsi} - \overline{(\dd{x}\Psi) \spsi} \nonumber \\
-    &+ \beta \overline{\dd{yy}\spsi} + \frac{1-\beta}{\Wi} \overline{\scxy}
+    0 &= - \Rey\overline{(\dd{xy}\Psi) \dd{y}\spsi}  - \Rey\overline{(\dd{y}\Psi)\dd{xy}\spsi} \nonumber \\
+    &+ \Rey\overline{(\dd{x}\Psi) \dd{yy}\spsi} + \Rey\overline{(\dd{yy}\Psi) \dd{x}\spsi } \nonumber \\
+    &+ \beta \overline{\dd{yyy}\spsi} + \frac{1-\beta}{\Wi} \overline{\dd{y}\scxy}
 \end{align}
 \end{document}

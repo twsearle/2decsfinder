@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Wed  6 Nov 11:01:10 2013
+#   Last modified: Thu  7 Nov 11:19:51 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -13,6 +13,10 @@ from scipy import *
 from scipy import linalg
 import matplotlib.pyplot as plt
 import cPickle as pickle
+
+import sys
+sys.path.append(r"./analysis_code/")
+from matrix_checker import matrix_checker
 
 #SETTINGS----------------------------------------
 
@@ -281,16 +285,18 @@ def solve_eq(xVec):
     jacobian[N*M:(N+1)*M, :] = 0
     ##u0
     jacobian[N*M:(N+1)*M, 0:vecLen] = \
-                            - dot(prod_mat(dot(MDXY, PSI)), MDY)[N*M:(N+1)*M, :] \
-                            - dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
-                            + beta*MDYY[N*M:(N+1)*M, :]
+                            - Re*dot(prod_mat(dot(MDXY, PSI)), MDY)[N*M:(N+1)*M, :] \
+                            - Re*dot(prod_mat(dot(MDY, PSI)), MDXY)[N*M:(N+1)*M, :] \
+                            + Re*dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
+                            + Re*dot(prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
+                            + beta*MDYYY[N*M:(N+1)*M, :]
     ##cxx
     jacobian[N*M:(N+1)*M, vecLen:2*vecLen] = 0
     ##cyy
     jacobian[N*M:(N+1)*M, 2*vecLen:3*vecLen] = 0
     ##cxy
     jacobian[N*M:(N+1)*M, 3*vecLen:4*vecLen] = \
-                                            + (1-beta)*oneOverWi*II[N*M:(N+1)*M, :]
+                                            + (1-beta)*oneOverWi*MDY[N*M:(N+1)*M, :]
     ##nu
     jacobian[N*M:(N+1)*M, 4*vecLen] = 0
 
@@ -300,8 +306,12 @@ def solve_eq(xVec):
     # Apply BC to zeroth mode
     # dypsi0 = const
     jacobian[N*M + M-2, 0:4*vecLen + 1] = \
-        concatenate( (zeros(N*M), -DERIVTOP, zeros(N*M+3*vecLen+1)) )
+        concatenate( (zeros(N*M), BTOP, zeros(N*M+3*vecLen+1)) )
     jacobian[N*M + M-1, 0:4*vecLen + 1] = \
+        concatenate( (zeros(N*M), BBOT, zeros(N*M+3*vecLen+1)) )
+    jacobian[N*M + M-4, 0:4*vecLen + 1] = \
+        concatenate( (zeros(N*M), -DERIVTOP, zeros(N*M+3*vecLen+1)) )
+    jacobian[N*M + M-3, 0:4*vecLen + 1] = \
         concatenate( (zeros(N*M), -DERIVBOT, zeros(N*M+3*vecLen+1)) )
 
     for n in range(2*N+1):
@@ -318,29 +328,7 @@ def solve_eq(xVec):
             concatenate( (zeros(n*M), -DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
     del n
 
-    print "The jacobian determinant is ", linalg.det(jacobian)
-    zeroColCond = any(jacobian, axis=0)
-    print "If false there is a zero col: ", all(zeroColCond)
-    zeroColsIndxs = nonzero(invert(zeroColCond))
-    print "The indices of the zero cols: ", zeroColsIndxs
-    cIndx = zeroColsIndxs
-    savetxt("zeroCols.dat", jacobian[zeroColsIndxs].T)
-    print "sum over the first zero col check, ", sum(jacobian[:,cIndx[0]])
-    print "Col Indx divided by vecLen", double(cIndx)/vecLen
-
-    zeroRowCond = any(jacobian, axis=1) 
-    print "If false there is a zero row: ", all(zeroRowCond)
-    zeroRowsIndxs = nonzero(invert(zeroRowCond))
-    print "The indices of the zero rows: ", zeroRowsIndxs
-    rIndx = zeroRowsIndxs
-    savetxt("zeroRows.dat", jacobian.T[zeroRowsIndxs].T)
-    print "sum over the first zero row check, ", \
-            sum(jacobian[rIndx[0],:])
-    print "Row Indx divided by vecLen", double(rIndx)/vecLen
-    plt.figure()
-    plt.imshow(log(real(jacobian*conjugate(jacobian))))
-    plt.show()
-    exit(1)
+    matrix_checker(jacobian, vecLen, False)
 
     return(jacobian, residualsVec)
 
@@ -386,6 +374,7 @@ xVec[3*vecLen:4*vecLen] = Cxy
 
 MDY = mk_diff_y()
 MDYY = dot(MDY,MDY)
+MDYYY = dot(MDY,MDYY)
 MDX = mk_diff_x()
 MDXX = dot(MDX, MDX)
 MDXY = dot(MDX, MDY)
