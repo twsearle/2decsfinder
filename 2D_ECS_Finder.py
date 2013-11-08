@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Thu  7 Nov 15:43:19 2013
+#   Last modified: Fri  8 Nov 10:47:20 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -21,12 +21,12 @@ from matrix_checker import matrix_checker
 
 #SETTINGS----------------------------------------
 
-N = 2              # Number of Fourier modes
-M = 5               # Number of Chebychevs (>4)
-Wi = 0.1           # The Weissenberg number
-Re = 10.0           # The Reynold's number
+N = 7              # Number of Fourier modes
+M = 20               # Number of Chebychevs (>4)
+Wi = 0.001           # The Weissenberg number
+Re = 100.0           # The Reynold's number
 beta = 0.1
-kx  = 0.06
+kx  = 1.0
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
@@ -145,11 +145,11 @@ def solve_eq(xVec):
     residualsVec = zeros((4*vecLen + 1), dtype='complex')
 
     #####psi
-    residualsVec[0:vecLen] =  Re*Nu*dot(LAPLAC,PSI) \
+    residualsVec[0:vecLen] =  Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
                             - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
                             - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
                             + beta*dot(BIHARM, PSI) \
-                            - (1.-beta)*(dot(MDXX, Txx) + dot(MDXY, (Txy - Txy)) \
+                            - (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
                                          - dot(MDYY, Txy))
 
     #####xx
@@ -172,8 +172,8 @@ def solve_eq(xVec):
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
-                                + beta*dot(MDYY, PSI)[N*M:(N+1)*M] \
-                                + (1-beta)*oneOverWi*Cxy[N*M:(N+1)*M]
+                                + beta*dot(MDYYY, PSI)[N*M:(N+1)*M] \
+                                + (1-beta)*oneOverWi*dot(MDY,Cxy)[N*M:(N+1)*M]
     # set the pressure gradient (pressure driven flow)
     residualsVec[N*M] += - 2.0
 
@@ -183,15 +183,15 @@ def solve_eq(xVec):
     # dxPsi = 0   
     for k in range (2*N+1): 
         if k == N: continue # skip the 0th component 
-        residualsVec[k*M + M-2] = dot((k-N)*kx*BTOP, PSI[k*M:k*M + M])
-        residualsVec[k*M + M-1] = dot((k-N)*kx*BBOT, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-2] = dot((k-N)*kx*BTOP, PSI[k*M:(k+1)*M])
+        residualsVec[k*M + M-1] = dot((k-N)*kx*BBOT, PSI[k*M:(k+1)*M])
     del k
 
     # dyPsi(+-1) = 0 
     for k in range (2*N+1):
         if k == N: continue # skip the 0th component 
-        residualsVec[k*M + M-4] = dot(-DERIVTOP, PSI[k*M:k*M + M])
-        residualsVec[k*M + M-3] = dot(-DERIVBOT, PSI[k*M:k*M + M])
+        residualsVec[k*M + M-4] = dot(-DERIVTOP, PSI[k*M:(k+1)*M])
+        residualsVec[k*M + M-3] = dot(-DERIVBOT, PSI[k*M:(k+1)*M])
     del k
 
     # dyPsi0(+-1) = 0
@@ -322,7 +322,21 @@ def solve_eq(xVec):
 
     # a script I wrote which checks for a couple of obvious things (e.g zero
     # rows)
-    matrix_checker(jacobian, vecLen, False)
+    #matrix_checker(jacobian, vecLen, False)
+    #print "Determinant of jacobian = ", linalg.det(jacobian)
+    #print "Block by Block determinant"
+    #for j in range(4): 
+    #    for i in range(4):
+    #        d = linalg.det(jacobian[j*vecLen:(j+1)*vecLen,
+    #                                i*vecLen:(i+1)*vecLen])
+    #        norm = linalg.norm(jacobian[j*vecLen:(j+1)*vecLen,
+    #                                i*vecLen:(i+1)*vecLen], 2)
+    #        s = "BLOCK: row {r}, column {c} [det, norm] =[{d} \t{n}]"
+    #        print s.format(c=i+1, r=j+1, d=d, n=norm)
+    #del i,j,d
+    #print "Determinant of dyPsi = ", linalg.det(prod_mat(dot(MDY,PSI)))
+
+    #exit(1)
 
     return(jacobian, residualsVec)
 
@@ -335,6 +349,17 @@ outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(N=N, M=M,
 # setup the initial conditions 
 
 vecLen = M*(2*N+1)  
+print "Settings:"
+print """------------------------------------
+N \t= {N}
+M \t= {M}              
+Wi \t= {Wi}        
+Re \t= {Re}         
+beta \t= {beta}
+kx \t= {kx}
+------------------------------------
+        """.format(N=N, M=M, kx=kx, Re=Re, beta=beta, Wi=Wi)
+
 print "The length of a vector is: ", vecLen
 print "The size of the jacobian Matrix is: {x} by {y}".format(x=(4*vecLen+1), y=
                                                              (4*vecLen+1))
@@ -347,14 +372,18 @@ oneOverC[0] = 1. / 2.
 CFunc = ones(M)
 CFunc[0] = 2.
 
-#PSI = random.random(vecLen)
-#Cxx = random.random(vecLen)
-#Cyy = random.random(vecLen)
-#Cxy = random.random(vecLen)
+#PSI = random.random(vecLen)/10.0
+Cxx = random.random(vecLen)/100.0
+Cyy = random.random(vecLen)/100.0
+Cxy = random.random(vecLen)/100.0
+
 PSI = zeros(vecLen, dtype='complex')
-Cxx = zeros(vecLen, dtype='complex')
-Cyy = zeros(vecLen, dtype='complex')
-Cxy = zeros(vecLen, dtype='complex')
+PSI[N*M+1] =  3.0/8.0
+PSI[N*M+2] = -1.0
+PSI[N*M+3] = -1.0/8.0
+#Cxx = zeros(vecLen, dtype='complex')
+#Cyy = zeros(vecLen, dtype='complex')
+#Cxy = zeros(vecLen, dtype='complex')
 Nu  = 0
 
 xVec = zeros((4*vecLen + 1), dtype='complex')
@@ -362,6 +391,7 @@ xVec[0:vecLen]          = PSI
 xVec[vecLen:2*vecLen]   = Cxx
 xVec[2*vecLen:3*vecLen] = Cyy
 xVec[3*vecLen:4*vecLen] = Cxy
+xVec[4*vecLen]          = Nu 
 
 # Useful operators 
 
@@ -395,12 +425,15 @@ SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
 SPEEDCONDITION[3*vecLen + NuIndx] =  1.
 SPEEDCONDITION[4*vecLen - NuIndx] = -1.
 
+print "Begin Newton-Rhaphson"
+print "------------------------------------"
+print "L2norm:"
 while True:
     (J_x0, f_x0) = solve_eq(xVec)
     dx = linalg.solve(J_x0, -f_x0)
     xVec = xVec + dx
     L2norm = linalg.norm(f_x0,2)
-    print "L2 norm = {L2norm}".format(L2norm=L2norm)
+    print "\t {L2norm}".format(L2norm=L2norm)
     if (L2norm < NRdelta): break
 
 PSI = xVec[0:vecLen] 
