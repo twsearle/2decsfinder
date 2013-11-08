@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Fri  8 Nov 17:06:39 2013
+#   Last modified: Fri  8 Nov 18:38:08 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -14,16 +14,11 @@ from scipy import linalg
 import matplotlib.pyplot as plt
 import cPickle as pickle
 
-# import one of my extra functions from a different file
-import sys
-sys.path.append(r"./analysis_code/")
-from matrix_checker import matrix_checker
-
 #SETTINGS----------------------------------------
 
 N = 3              # Number of Fourier modes
 M = 30               # Number of Chebychevs (>4)
-Re = 5760.0           # The Reynold's number
+Re = 5771.0           # The Reynold's number
 kx  = 1.0
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
@@ -138,7 +133,7 @@ def solve_eq(xVec):
                             + dot(BIHARM, PSI)
 
     #####Nu
-    residualsVec[vecLen] = PSI[NuIndx] - PSI[-NuIndx]
+    residualsVec[vecLen] = PSI[NuIndx] - PSI[-NuIndx+1]
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
@@ -227,10 +222,6 @@ def solve_eq(xVec):
             concatenate( (zeros(n*M), -DERIVBOT, zeros((2*N-n)*M+1)) )
     del n
 
-    # a script I wrote which checks for a couple of obvious things (e.g zero
-    # rows)
-    # matrix_checker(jacobian, vecLen, False)
-
     return(jacobian, residualsVec)
 
 #MAIN
@@ -300,10 +291,13 @@ for j in range(M):
     DERIVBOT[j] = dot(BBOT, singleDY[:,j])
 del j
 
-# Set only the imaginary part a component to constrain nu
+# Set only the imaginary part at a point to zero to constrain nu. I will choose
+# y = 0.5, x = 0 and hope that works
 SPEEDCONDITION = zeros(vecLen+1, dtype = 'complex')
-SPEEDCONDITION[NuIndx] =  1.
-SPEEDCONDITION[ vecLen - NuIndx] = -1.
+for n in range(2*N+1):
+    for m in range(M):
+        SPEEDCONDITION[n*M + m] = cos(m*arccos(0.5)) #* exp(1.j*(n-N)*kx*x)
+del n,m
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"

@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Fri  8 Nov 15:13:00 2013
+#   Last modified: Fri  8 Nov 18:10:24 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -168,7 +168,7 @@ def solve_eq(xVec):
                                       + dot(MMDXV, Cyy) - Txy
 
     #####Nu
-    residualsVec[4*vecLen] = Cxy[NuIndx] - Cxy[-NuIndx]
+    residualsVec[4*vecLen] = dot(SPEEDCONDITION, Cxy)
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
@@ -417,10 +417,13 @@ for j in range(M):
     DERIVBOT[j] = dot(BBOT, singleDY[:,j])
 del j
 
-# Set only the imaginary part a component to constrain nu
+# Set only the imaginary part at a point to zero to constrain nu. I will choose
+# y = 0.5, x = 0 and hope that works
 SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
-SPEEDCONDITION[3*vecLen + NuIndx] =  1.
-SPEEDCONDITION[4*vecLen - NuIndx] = -1.
+for n in range(2*N+1):
+    for m in range(M):
+        SPEEDCONDITION[3*vecLen + n*M + m] = cos(m*arccos(0.5))
+del n,m
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"
