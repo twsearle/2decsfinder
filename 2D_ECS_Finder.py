@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Fri  8 Nov 18:10:24 2013
+#   Last modified: Sat  9 Nov 00:33:52 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -21,11 +21,11 @@ from matrix_checker import matrix_checker
 
 #SETTINGS----------------------------------------
 
-N = 7              # Number of Fourier modes
-M = 20               # Number of Chebychevs (>4)
-Wi = 0.001           # The Weissenberg number
-Re = 100.0           # The Reynold's number
-beta = 0.1
+N = 3              # Number of Fourier modes
+M = 40               # Number of Chebychevs (>4)
+Wi = 0.00001           # The Weissenberg number
+Re = 5770.0           # The Reynold's number
+beta = 0.99
 kx  = 1.0
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
@@ -168,7 +168,7 @@ def solve_eq(xVec):
                                       + dot(MMDXV, Cyy) - Txy
 
     #####Nu
-    residualsVec[4*vecLen] = dot(SPEEDCONDITION, Cxy)
+    residualsVec[4*vecLen] = dot(SPEEDCONDITION[3*vecLen:4*vecLen], Cxy)
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
@@ -322,7 +322,7 @@ def solve_eq(xVec):
 
     # a script I wrote which checks for a couple of obvious things (e.g zero
     # rows)
-    matrix_checker(jacobian, vecLen, False)
+    #matrix_checker(jacobian, vecLen, False)
     #print "Determinant of jacobian = ", linalg.det(jacobian)
     #print "Block by Block determinant"
     #for j in range(4): 
@@ -370,9 +370,9 @@ CFunc = ones(M)
 CFunc[0] = 2.
 
 #PSI = random.random(vecLen)/10.0
-Cxx = random.random(vecLen)/100.0
-Cyy = random.random(vecLen)/100.0
-Cxy = random.random(vecLen)/100.0
+Cxx = random.random(vecLen)/10000000.0
+Cyy = random.random(vecLen)/10000000.0
+Cxy = random.random(vecLen)/10000000.0
 
 PSI = zeros(vecLen, dtype='complex')
 PSI[N*M+1] =  3.0/8.0
@@ -420,10 +420,9 @@ del j
 # Set only the imaginary part at a point to zero to constrain nu. I will choose
 # y = 0.5, x = 0 and hope that works
 SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
-for n in range(2*N+1):
-    for m in range(M):
-        SPEEDCONDITION[3*vecLen + n*M + m] = cos(m*arccos(0.5))
-del n,m
+for m in range(M):
+    SPEEDCONDITION[3*vecLen + m] = cos(m*arccos(0.5)) 
+    SPEEDCONDITION[3*vecLen + 2*N*M + m] = -cos(m*arccos(0.5))
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"
@@ -441,5 +440,7 @@ Cxx = xVec[1*vecLen:2*vecLen]
 Cyy = xVec[2*vecLen:3*vecLen] 
 Cxy = xVec[3*vecLen:4*vecLen]
 Nu  = xVec[4*vecLen]
+print "------------------------------------\n"
+print " Nu = ", Nu
 
 save_pickle((PSI,Cxx,Cyy,Cxy,Nu), outFileName)

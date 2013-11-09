@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Fri  8 Nov 18:38:08 2013
+#   Last modified: Sat  9 Nov 00:27:46 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -133,7 +133,7 @@ def solve_eq(xVec):
                             + dot(BIHARM, PSI)
 
     #####Nu
-    residualsVec[vecLen] = PSI[NuIndx] - PSI[-NuIndx+1]
+    residualsVec[vecLen] = dot(SPEEDCONDITION[0:(2*N+1)*M], PSI)
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
@@ -291,13 +291,12 @@ for j in range(M):
     DERIVBOT[j] = dot(BBOT, singleDY[:,j])
 del j
 
-# Set only the imaginary part at a point to zero to constrain nu. I will choose
-# y = 0.5, x = 0 and hope that works
+# Set only the imaginary part of a Fourier component to zero to constrain
+#  nu. I will choose y = 0.5
 SPEEDCONDITION = zeros(vecLen+1, dtype = 'complex')
-for n in range(2*N+1):
-    for m in range(M):
-        SPEEDCONDITION[n*M + m] = cos(m*arccos(0.5)) #* exp(1.j*(n-N)*kx*x)
-del n,m
+for m in range(M):
+    SPEEDCONDITION[m] = cos(m*arccos(0.5)) 
+    SPEEDCONDITION[2*N*M + m] = -cos(m*arccos(0.5))
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"
@@ -310,7 +309,9 @@ while True:
     print "\t {L2norm}".format(L2norm=L2norm)
     if (L2norm < NRdelta): break
 
+print "------------------------------------\n"
 PSI = xVec[0:vecLen] 
 Nu  = xVec[vecLen]
+print "Nu = ", Nu
 
 pickle.dump((PSI,Nu), open(outFileName, 'w'))

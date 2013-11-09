@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 #   colour map plotter for 2D coherent state finder
 #
-#   Last modified: Fri  8 Nov 16:49:32 2013
+#   Last modified: Fri  8 Nov 22:31:26 2013
 #
 #------------------------------------------------------------------------------
 
@@ -16,7 +16,7 @@ from matplotlib import rc
 
 N = 3              # Number of Fourier modes
 M = 30               # Number of Chebychevs (>4)
-Re = 5770.0           # The Reynold's number
+Re = 5771.0           # The Reynold's number
 kx  = 1.0
 
 numXs = 50
