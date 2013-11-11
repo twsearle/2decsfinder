@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 #   colour map plotter for 2D coherent state finder
 #
-#   Last modified: Mon 11 Nov 13:27:55 2013
+#   Last modified: Mon 11 Nov 18:39:16 2013
 #
 #------------------------------------------------------------------------------
 #TODO check that the axes are the right way up?
@@ -66,7 +66,7 @@ del xIndx
 
 y_points = zeros(numYs,dtype='d')
 for yIndx in range(numYs):
-    y_points[yIndx] = (2.0*yIndx)/(1.0*numYs) - 1.0 
+    y_points[yIndx] = (2.0*yIndx)/(numYs-1.0) - 1.0 
 del yIndx
 
 # Perform transformation

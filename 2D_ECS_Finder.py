@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sat  9 Nov 00:33:52 2013
+#   Last modified: Mon 11 Nov 18:25:23 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -171,11 +171,11 @@ def solve_eq(xVec):
     residualsVec[4*vecLen] = dot(SPEEDCONDITION[3*vecLen:4*vecLen], Cxy)
 
     #####psi0
-    residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
-                                + beta*dot(MDYYY, PSI)[N*M:(N+1)*M] \
+    residualsVec[N*M:(N+1)*M] = - Re*dot(VGRAD, U)[N*M:(N+1)*M] \
+                                - beta*dot(MDYYY, PSI)[N*M:(N+1)*M] \
                                 + (1-beta)*oneOverWi*dot(MDY,Cxy)[N*M:(N+1)*M]
     # set the pressure gradient (pressure driven flow)
-    residualsVec[N*M] += - 2.0
+    residualsVec[N*M] += 2.0
 
 
     ##### Apply boundary conditions to residuals vector
@@ -282,7 +282,7 @@ def solve_eq(xVec):
                             - Re*dot(prod_mat(dot(MDY, PSI)), MDXY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
-                            + beta*MDYYY[N*M:(N+1)*M, :]
+                            - beta*MDYYY[N*M:(N+1)*M, :]
     ##cxx
     jacobian[N*M:(N+1)*M, vecLen:2*vecLen] = 0
     ##cyy
@@ -418,11 +418,11 @@ for j in range(M):
 del j
 
 # Set only the imaginary part at a point to zero to constrain nu. I will choose
-# y = 0.5, x = 0 and hope that works
+# y = 0.5
 SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
 for m in range(M):
-    SPEEDCONDITION[3*vecLen + m] = cos(m*arccos(0.5)) 
-    SPEEDCONDITION[3*vecLen + 2*N*M + m] = -cos(m*arccos(0.5))
+    SPEEDCONDITION[3*vecLen + (N-1)*M + m] = cos(m*arccos(0.5)) 
+    SPEEDCONDITION[3*vecLen + (N+1)*M + m] = -cos(m*arccos(0.5))
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"

@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sat  9 Nov 11:40:21 2013
+#   Last modified: Mon 11 Nov 18:27:06 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -16,7 +16,7 @@ import cPickle as pickle
 
 #SETTINGS----------------------------------------
 
-N = 3              # Number of Fourier modes
+N = 5              # Number of Fourier modes
 M = 30               # Number of Chebychevs (>4)
 Re = 5771.0           # The Reynold's number
 kx  = 1.0
@@ -122,6 +122,10 @@ def solve_eq(xVec):
 
     MMDXPSI   = prod_mat(dot(MDX, LAPLACPSI))
 
+    # a vector with only constant component
+    constVec = zeros(((2*N+1)*M), dtype='complex')
+    constVec[N*M] = 1.0
+
     #######calculate the Residuals########
 
     residualsVec = zeros((vecLen + 1), dtype='complex')
@@ -133,13 +137,13 @@ def solve_eq(xVec):
                             + dot(BIHARM, PSI)
 
     #####Nu
-    residualsVec[vecLen] = dot(SPEEDCONDITION[0:(2*N+1)*M], PSI)
+    residualsVec[vecLen] = dot(SPEEDCONDITION[0:(2*N+1)*M] , PSI)
 
     #####psi0
-    residualsVec[N*M:(N+1)*M] = - dot(VGRAD, U)[N*M:(N+1)*M] \
-                                + dot(MDYYY, PSI)[N*M:(N+1)*M] \
+    residualsVec[N*M:(N+1)*M] = - Re*dot(VGRAD, U)[N*M:(N+1)*M] \
+                                - dot(MDYYY, PSI)[N*M:(N+1)*M] \
     # set the pressure gradient (pressure driven flow)
-    residualsVec[N*M] += - 2.0
+    residualsVec[N*M] += 2.0
 
 
     ##### Apply boundary conditions to residuals vector
@@ -192,7 +196,7 @@ def solve_eq(xVec):
                             - Re*dot(prod_mat(dot(MDY, PSI)), MDXY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
-                            + MDYYY[N*M:(N+1)*M, :]
+                            - MDYYY[N*M:(N+1)*M, :]
     ##nu
     jacobian[N*M:(N+1)*M, vecLen] = 0
 
@@ -251,7 +255,7 @@ oneOverC[0] = 1. / 2.
 CFunc = ones(M)
 CFunc[0] = 2.
 
-PSI = random.random(vecLen)/100000.0
+PSI = random.random(vecLen)/1000000.0
 
 #PSI = zeros(vecLen, dtype='complex')
 PSI[N*M]   = -2.0/3.0
@@ -293,11 +297,11 @@ for j in range(M):
 del j
 
 # Set only the imaginary part of a Fourier component to zero to constrain
-#  nu. I will choose y = 0.5. Question is, shall I overwrite the other BC's?
+#  nu. I will choose y = 0.5. Use the 1st mode for this condition
 SPEEDCONDITION = zeros(vecLen+1, dtype = 'complex')
-for m in range(M-4):
-    SPEEDCONDITION[m] = cos(m*arccos(0.5)) 
-    SPEEDCONDITION[2*N*M + m] = -cos(m*arccos(0.5))
+for m in range(M):
+    SPEEDCONDITION[(N-1)*M + m] = cos(m*arccos(0.5)) 
+    SPEEDCONDITION[(N+1)*M + m] = -cos(m*arccos(0.5))
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"

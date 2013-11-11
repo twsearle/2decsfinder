@@ -61,7 +61,7 @@ PSI[3]   = 1.0/12.0
 
 y_points = zeros(numYs, dtype='d')
 for yIndx in range(numYs):
-    y_points[yIndx] = 1.0 - (2.0*yIndx)/(numYs)
+    y_points[yIndx] = 1.0 - (2.0*yIndx)/(numYs-1.0)
 del yIndx
 
 PSIr = Cheb_to_real_transform(PSI, y_points)
