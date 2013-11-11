@@ -1,9 +1,10 @@
 #------------------------------------------------------------------------------
 #   colour map plotter for 2D coherent state finder
 #
-#   Last modified: Fri  8 Nov 22:31:26 2013
+#   Last modified: Mon 11 Nov 13:27:55 2013
 #
 #------------------------------------------------------------------------------
+#TODO check that the axes are the right way up?
 
 #MODULES
 from scipy import *
@@ -37,7 +38,7 @@ def Fourier_cheb_transform(vec, x_points, y_points) :
                     x = x_points[xIndx]
                     y = y_points[yIndx]
                     term = vec[(n-N)*M + m] * exp(1.j*n*kx*x) * cos(m*arccos(y))
-                    rVec[x,y] += term
+                    rVec[xIndx,yIndx] += term
     del x,y,n,m
 
     return real(rVec)
@@ -55,20 +56,21 @@ PSI0[N*M+3] = 1.0/12.0
 
 Psi = Psi - PSI0 
 
+print Nu 
 
 x_points = zeros(numXs,dtype='d') 
-for n in range(numXs):
+for xIndx in range(numXs):
     #               2.lambda     * fractional position
-    x_points[n] = (4.*pi/kx) * ((1.*n)/numXs)
-del n
+    x_points[xIndx] = (4.*pi/kx) * ((1.*xIndx)/numXs)
+del xIndx
 
 y_points = zeros(numYs,dtype='d')
 for yIndx in range(numYs):
-    y = (2.0*yIndx)/(1.0*numYs) - 1.0
+    y_points[yIndx] = (2.0*yIndx)/(1.0*numYs) - 1.0 
 del yIndx
 
 # Perform transformation
-Psi = Fourier_cheb_transform(Psi, x_points, y_points)
+Psi2D = Fourier_cheb_transform(Psi, x_points, y_points)
 
 
 # make meshes
@@ -83,7 +85,7 @@ fig_size =  [fig_width,fig_height]
 rc('figure', figsize=fig_size)
 
 plt.figure()
-plt.imshow(Psi, origin='lower', extent=[0,22,-1,1], aspect=4)
+plt.imshow(Psi2D, origin='lower', extent=[0,22,-1,1], aspect=4)
 plt.colorbar(orientation='horizontal')
 titleString = 'psi for k = {k}, Re = {Re}'.format(k=kx, Re=Re)
 plt.title(titleString)

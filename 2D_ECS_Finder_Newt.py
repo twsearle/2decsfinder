@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sat  9 Nov 00:27:46 2013
+#   Last modified: Sat  9 Nov 11:40:21 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -232,6 +232,7 @@ outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M,
 # setup the initial conditions 
 
 vecLen = M*(2*N+1)  
+print"=====================================\n"
 print "Settings:"
 print """------------------------------------
 N \t= {N}
@@ -292,9 +293,9 @@ for j in range(M):
 del j
 
 # Set only the imaginary part of a Fourier component to zero to constrain
-#  nu. I will choose y = 0.5
+#  nu. I will choose y = 0.5. Question is, shall I overwrite the other BC's?
 SPEEDCONDITION = zeros(vecLen+1, dtype = 'complex')
-for m in range(M):
+for m in range(M-4):
     SPEEDCONDITION[m] = cos(m*arccos(0.5)) 
     SPEEDCONDITION[2*N*M + m] = -cos(m*arccos(0.5))
 
@@ -313,5 +314,6 @@ print "------------------------------------\n"
 PSI = xVec[0:vecLen] 
 Nu  = xVec[vecLen]
 print "Nu = ", Nu
+print"=====================================\n"
 
 pickle.dump((PSI,Nu), open(outFileName, 'w'))
