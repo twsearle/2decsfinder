@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon 11 Nov 18:27:06 2013
+#   Last modified: Tue 12 Nov 11:22:38 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -151,8 +151,8 @@ def solve_eq(xVec):
     # dxPsi = 0   
     for k in range (2*N+1): 
         if k == N: continue # skip the 0th component 
-        residualsVec[k*M + M-2] = dot((k-N)*kx*BTOP, PSI[k*M:(k+1)*M])
-        residualsVec[k*M + M-1] = dot((k-N)*kx*BBOT, PSI[k*M:(k+1)*M])
+        residualsVec[k*M + M-2] = dot((k-N)*1.j*kx*BTOP, PSI[k*M:(k+1)*M])
+        residualsVec[k*M + M-1] = dot((k-N)*1.j*kx*BBOT, PSI[k*M:(k+1)*M])
     del k
 
     # dyPsi(+-1) = 0 
