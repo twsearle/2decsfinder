@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue 12 Nov 11:22:38 2013
+#   Last modified: Tue 12 Nov 12:22:37 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -216,9 +216,9 @@ def solve_eq(xVec):
         if n == N: continue     # Don't apply bcs to psi0 mode here
         # dxpsi = 0
         jacobian[n*M + M-2, 0 : vecLen + 1] = \
-            concatenate( (zeros(n*M), (n-N)*kx*BTOP, zeros((2*N-n)*M+1)) )
+            concatenate( (zeros(n*M), (n-N)*kx*1.j*BTOP, zeros((2*N-n)*M+1)) )
         jacobian[n*M + M-1, 0 : vecLen + 1] = \
-            concatenate( (zeros(n*M), (n-N)*kx*BBOT, zeros((2*N-n)*M+1)) )
+            concatenate( (zeros(n*M), (n-N)*kx*1.j*BBOT, zeros((2*N-n)*M+1)) )
         # -dypsi = const
         jacobian[n*M + M-4, 0:vecLen + 1] = \
             concatenate( (zeros(n*M), -DERIVTOP, zeros((2*N-n)*M+1)) )
