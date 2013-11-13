@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon 11 Nov 18:25:23 2013
+#   Last modified: Wed 13 Nov 13:56:54 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -122,8 +122,8 @@ def solve_eq(xVec):
     Tyy = oneOverWi * (Cyy - 1.)
     Txy = oneOverWi * Cxy
 
-    U         = - dot(MDY, PSI)
-    V         = + dot(MDX, PSI)
+    U         = + dot(MDY, PSI)
+    V         = - dot(MDX, PSI)
     LAPLACPSI = dot(LAPLAC, PSI)
 
     # Useful Operators
@@ -145,12 +145,12 @@ def solve_eq(xVec):
     residualsVec = zeros((4*vecLen + 1), dtype='complex')
 
     #####psi
-    residualsVec[0:vecLen] =  Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
-                            - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
-                            - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
-                            + beta*dot(BIHARM, PSI) \
-                            - (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
-                                         - dot(MDYY, Txy))
+    residualsVec[0:vecLen] = -  Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
+                             + Re*dot(MMU, dot(MDX, LAPLACPSI)) \
+                             + Re*dot(MMV, dot(MDY, LAPLACPSI))  \
+                             - beta*dot(BIHARM, PSI) \
+                             - (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
+                                          - dot(MDYY, Txy))
 
     #####xx
     residualsVec[vecLen:2*vecLen] = Nu*dot(MDX,Cxx) - dot(VGRAD, Cxx) \
@@ -172,7 +172,7 @@ def solve_eq(xVec):
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - Re*dot(VGRAD, U)[N*M:(N+1)*M] \
-                                - beta*dot(MDYYY, PSI)[N*M:(N+1)*M] \
+                                + beta*dot(MDYYY, PSI)[N*M:(N+1)*M] \
                                 + (1-beta)*oneOverWi*dot(MDY,Cxy)[N*M:(N+1)*M]
     # set the pressure gradient (pressure driven flow)
     residualsVec[N*M] += 2.0
@@ -190,13 +190,13 @@ def solve_eq(xVec):
     # dyPsi(+-1) = 0 
     for k in range (2*N+1):
         if k == N: continue # skip the 0th component 
-        residualsVec[k*M + M-4] = dot(-DERIVTOP, PSI[k*M:(k+1)*M])
-        residualsVec[k*M + M-3] = dot(-DERIVBOT, PSI[k*M:(k+1)*M])
+        residualsVec[k*M + M-4] = dot(DERIVTOP, PSI[k*M:(k+1)*M])
+        residualsVec[k*M + M-3] = dot(DERIVBOT, PSI[k*M:(k+1)*M])
     del k
 
     # dyPsi0(+-1) = 0
-    residualsVec[N*M + M-3] = dot(-DERIVTOP, (PSI[N*M:(N+1)*M]))
-    residualsVec[N*M + M-2] = dot(-DERIVBOT, (PSI[N*M:(N+1)*M]))
+    residualsVec[N*M + M-3] = dot(DERIVTOP, (PSI[N*M:(N+1)*M]))
+    residualsVec[N*M + M-2] = dot(DERIVBOT, (PSI[N*M:(N+1)*M]))
 
     # Psi0(-1) = 0
     residualsVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M]))
@@ -207,12 +207,12 @@ def solve_eq(xVec):
 
     ###### psi
     ##psi
-    jacobian[0:vecLen, 0:vecLen] =   Nu*Re*dot(MDX, LAPLAC) \
-                                   - Re*dot(dot(MMU, MDX), LAPLAC) \
-                                   - Re*dot(dot(MMV, MDY), LAPLAC) \
+    jacobian[0:vecLen, 0:vecLen] = - Nu*Re*dot(MDX, LAPLAC) \
+                                   + Re*dot(dot(MMU, MDX), LAPLAC) \
+                                   + Re*dot(dot(MMV, MDY), LAPLAC) \
                                    - Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
                                    + Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
-                                   + beta*BIHARM 
+                                   - beta*BIHARM 
     ##cxx
     jacobian[0:vecLen, vecLen:2*vecLen] = + (1.-beta)*oneOverWi*MDXY
     ##cyy
@@ -224,10 +224,10 @@ def solve_eq(xVec):
 
     ###### Cxx
     ##psi                                   - dv.grad cxx
-    jacobian[vecLen:2*vecLen, 0:vecLen] = + dot(prod_mat(dot(MDX, Cxx)), MDY) \
-                                          - dot(prod_mat(dot(MDY, Cxx)), MDX) \
-                                          - 2.*dot(prod_mat(Cxx), MDXY) \
-                                          + 2.*dot(prod_mat(Cxy), MDXX) \
+    jacobian[vecLen:2*vecLen, 0:vecLen] = - dot(prod_mat(dot(MDX, Cxx)), MDY) \
+                                          + dot(prod_mat(dot(MDY, Cxx)), MDX) \
+                                          + 2.*dot(prod_mat(Cxx), MDXY) \
+                                          - 2.*dot(prod_mat(Cxy), MDXX) \
     ##cxx
     jacobian[vecLen:2*vecLen, vecLen:2*vecLen] = Nu*MDX - VGRAD + 2.*MMDXU \
                                                  - oneOverWi*II 
@@ -240,10 +240,10 @@ def solve_eq(xVec):
 
     ###### Cyy
     ##psi
-    jacobian[2*vecLen:3*vecLen, 0:vecLen]  = + dot(prod_mat(dot(MDX, Cyy)), MDY) \
-                                             - dot(prod_mat(dot(MDY, Cyy)), MDX) \
-                                             + 2.*dot(prod_mat(Cyy), MDXY) \
-                                             - 2.*dot(prod_mat(Cxy), MDYY) \
+    jacobian[2*vecLen:3*vecLen, 0:vecLen]  = - dot(prod_mat(dot(MDX, Cyy)), MDY) \
+                                             + dot(prod_mat(dot(MDY, Cyy)), MDX) \
+                                             - 2.*dot(prod_mat(Cyy), MDXY) \
+                                             + 2.*dot(prod_mat(Cxy), MDYY) \
     ##cxx
     jacobian[2*vecLen:3*vecLen, vecLen:2*vecLen] = 0
     ##cyy
@@ -256,10 +256,10 @@ def solve_eq(xVec):
 
     ###### Cxy
     ##psi
-    jacobian[3*vecLen:4*vecLen, 0:vecLen]   = + dot(prod_mat(dot(MDX, Cxy)), MDY) \
-                                              - dot(prod_mat(dot(MDY, Cxy)), MDX) \
-                                              - dot(prod_mat(Cxx), MDYY) \
-                                              + dot(prod_mat(Cyy), MDXX) \
+    jacobian[3*vecLen:4*vecLen, 0:vecLen]   = - dot(prod_mat(dot(MDX, Cxy)), MDY) \
+                                              + dot(prod_mat(dot(MDY, Cxy)), MDX) \
+                                              + dot(prod_mat(Cxx), MDYY) \
+                                              - dot(prod_mat(Cyy), MDXX) \
     ##cxx
     jacobian[3*vecLen:4*vecLen, vecLen:2*vecLen] =  MMDYU
     ##cyy
@@ -273,7 +273,7 @@ def solve_eq(xVec):
     ###### Nu 
     jacobian[4*vecLen, : ] = SPEEDCONDITION
 
-    ###### U0 equation
+    ###### psi0 equation
     #set row to zero
     jacobian[N*M:(N+1)*M, :] = 0
     ##u0
@@ -282,7 +282,7 @@ def solve_eq(xVec):
                             - Re*dot(prod_mat(dot(MDY, PSI)), MDXY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
-                            - beta*MDYYY[N*M:(N+1)*M, :]
+                            + beta*MDYYY[N*M:(N+1)*M, :]
     ##cxx
     jacobian[N*M:(N+1)*M, vecLen:2*vecLen] = 0
     ##cyy
@@ -299,9 +299,9 @@ def solve_eq(xVec):
     # Apply BC to zeroth mode
     # dypsi0 = const
     jacobian[N*M + M-3, 0:4*vecLen + 1] = \
-        concatenate( (zeros(N*M), -DERIVTOP, zeros(N*M+3*vecLen+1)) )
+        concatenate( (zeros(N*M), DERIVTOP, zeros(N*M+3*vecLen+1)) )
     jacobian[N*M + M-2, 0:4*vecLen + 1] = \
-        concatenate( (zeros(N*M), -DERIVBOT, zeros(N*M+3*vecLen+1)) )
+        concatenate( (zeros(N*M), DERIVBOT, zeros(N*M+3*vecLen+1)) )
     # psi(-1) = const 
     jacobian[N*M + M-1, 0:4*vecLen + 1] = \
         concatenate( (zeros(N*M), BBOT, zeros(N*M+3*vecLen+1)) )
@@ -315,9 +315,9 @@ def solve_eq(xVec):
             concatenate( (zeros(n*M), (n-N)*kx*BBOT, zeros((2*N-n)*M+3*vecLen+1)) )
         # -dypsi = const
         jacobian[n*M + M-4, 0:4*vecLen + 1] = \
-            concatenate( (zeros(n*M), -DERIVTOP, zeros((2*N-n)*M+3*vecLen+1)) )
+            concatenate( (zeros(n*M), DERIVTOP, zeros((2*N-n)*M+3*vecLen+1)) )
         jacobian[n*M + M-3, 0:4*vecLen + 1] = \
-            concatenate( (zeros(n*M), -DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
+            concatenate( (zeros(n*M), DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
     del n
 
     # a script I wrote which checks for a couple of obvious things (e.g zero

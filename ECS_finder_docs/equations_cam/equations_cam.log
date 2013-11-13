@@ -1,9 +1,9 @@
-This is pdfTeX, Version 3.1415926-2.4-1.40.13 (TeX Live 2012) (format=pdflatex 2012.6.30)  13 NOV 2013 13:32
+This is pdfTeX, Version 3.1415926-2.4-1.40.13 (TeX Live 2012) (format=pdflatex 2012.6.30)  13 NOV 2013 13:31
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**equations.tex
-(./equations.tex
+**equations_cam.tex
+(./equations_cam.tex
 LaTeX2e <2011/06/27>
 Babel <v3.8m> and hyphenation patterns for english, dumylang, nohyphenation, ge
 rman-x-2012-05-30, ngerman-x-2012-05-30, afrikaans, ancientgreek, ibycus, arabi
@@ -95,8 +95,8 @@ LaTeX Info: Redefining \] on input line 2667.
 LaTeX Warning: Unused global option(s):
     [12].
 
-(./equations.aux)
-\openout1 = `equations.aux'.
+(./equations_cam.aux)
+\openout1 = `equations_cam.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 24.
 LaTeX Font Info:    ... okay on input line 24.
@@ -117,29 +117,29 @@ LaTeX Warning: No \author given.
 [1
 
 {/usr/local/texlive/2012/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-[2] (./equations.aux) ) 
+[2] (./equations_cam.aux) ) 
 Here is how much of TeX's memory you used:
  854 strings out of 493488
- 9431 string characters out of 3141326
- 66265 words of memory out of 3000000
+ 9467 string characters out of 3141326
+ 67265 words of memory out of 3000000
  4213 multiletter control sequences out of 15000+200000
  10263 words of font info for 37 fonts, out of 3000000 for 9000
  957 hyphenation exceptions out of 8191
- 27i,9n,20p,205b,195s stack positions out of 5000i,500n,10000p,200000b,50000s
-</usr/local/texlive/2012/texmf-dist/fonts/type1/public/a
-msfonts/cm/cmbx10.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/am
-sfonts/cm/cmbx12.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/ams
-fonts/cm/cmmi10.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsf
-onts/cm/cmmi12.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfo
-nts/cm/cmmi7.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfont
-s/cm/cmmi8.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/
-cm/cmr10.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm
-/cmr12.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm/c
-mr17.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm/cmr
-7.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.p
-fb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pf
-b>
-Output written on equations.pdf (2 pages, 115741 bytes).
+ 27i,9n,20p,209b,195s stack positions out of 5000i,500n,10000p,200000b,50000s
+</usr/local/texlive/2012/texmf-dist/fonts/type1/publ
+ic/amsfonts/cm/cmbx10.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/publi
+c/amsfonts/cm/cmbx12.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public
+/amsfonts/cm/cmmi10.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/
+amsfonts/cm/cmmi12.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/a
+msfonts/cm/cmmi7.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/ams
+fonts/cm/cmmi8.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfo
+nts/cm/cmr10.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfont
+s/cm/cmr12.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/
+cm/cmr17.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm
+/cmr7.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm/cm
+r8.pfb></usr/local/texlive/2012/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy1
+0.pfb>
+Output written on equations_cam.pdf (2 pages, 116207 bytes).
 PDF statistics:
  59 PDF objects out of 1000 (max. 8388607)
  42 compressed objects within 1 object stream

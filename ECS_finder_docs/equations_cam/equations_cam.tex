@@ -22,21 +22,21 @@
 
 
 \begin{document}
-\title{2D Poiseuille Exact Coherent State equations (the other streamfunction)}
+\title{2D Poiseuille Exact Coherent State equations (Cambridge)}
 \maketitle
 
 \section{The full equations}
 \begin{align}
     T_{ij} &= \frac{1}{\Wi} (C_{ij} - \II_{ij}) \\
-    u	   &= \dd{y} \psi \\
-    v	   &= -\dd{x} \psi
+    u	   &= -\dd{y} \psi \\
+    v	   &= \dd{x} \psi
 \end{align}
 
 \subsection{$\psi$}
 
 \begin{align}
-    0 &= - \Rey\nu\dd{x}\lpl\psi + \Rey u \dd{x} \lpl \psi + \Rey v \dd{y} \lpl \psi \nonumber\\
-      &- \beta \bih \psi - \frac{(1-\beta)}{\Wi} \left( \dd{xx} C_{xy} + \dd{xy}(C_{yy} - C_{xx}) - \dd{yy} C_{xy}\right)
+    0 &= \Rey\nu\dd{x}\lpl\psi - \Rey u \dd{x} \lpl \psi - \Rey v \dd{y} \lpl \psi \nonumber\\
+      &+ \beta \bih \psi - \frac{(1-\beta)}{\Wi} \left( \dd{xx} C_{xy} + \dd{xy}(C_{yy} - C_{xx}) - \dd{yy} C_{xy}\right)
 \end{align}
 
 \subsection{$C_{xx}$}
@@ -63,8 +63,8 @@
 \subsection{$\psi_{0}$}
 
 \begin{align}
-    0 &= - \Rey \overline{v\dd{y}v} \nonumber\\
-    &+ \beta \overline{\dd{yyy}\psi} + \frac{(1-\beta)}{\Wi}\overline{\dd{y}C_{xy}} + 2
+    0 &= - \Rey \overline{u\dd{x}u} - \Rey \overline{v\dd{y}v} \nonumber\\
+    &- \beta \overline{\dd{yyy}\psi} + \frac{(1-\beta)}{\Wi}\overline{\dd{y}C_{xy}} + 2
 \end{align}
 
 \section{The 1st order terms in a Taylor expansion}
@@ -79,8 +79,8 @@ C_{ij} = C_{ij} +\scij
 \subsection{$\psi$}
 
 \begin{align}
-    0 &= - \nu\Rey\dd{x}\lpl\spsi +  \Rey (\dd{x}\lpl\Psi) \dd{y}\spsi + \Rey U \dd{x}\lpl \spsi \nonumber\\
-    &- \Rey (\dd{y}\lpl \Psi) \dd{x} \spsi + \Rey V \dd{y} \lpl \spsi - \beta \bih \spsi \nonumber\\
+    0 &= \nu\Rey\dd{x}\lpl\spsi +  \Rey (\dd{x}\lpl\Psi) \dd{y}\spsi - \Rey U \dd{x}\lpl \spsi \nonumber\\
+    &- \Rey (\dd{y}\lpl \Psi) \dd{x} \spsi - \Rey V \dd{y} \lpl \spsi + \beta \bih \spsi \nonumber\\
     &- \frac{(1-\beta)}{\Wi} \left( \dd{xx} \scxy +\dd{yy} (\scyy -\scxx) - \dd{yy} \scxy \right)
 \end{align}
 
@@ -88,33 +88,34 @@ C_{ij} = C_{ij} +\scij
 
 \begin{align}
     0 &= \nu \dd{x} \scxx - (\mathbf{V}\cdot \nabla) \scxx \nonumber \\
-    &- (\dd{x}C_{xx})\dd{y}\spsi + (\dd{y}C_{xx})\dd{x} \spsi \nonumber\\
+    &+ (\dd{x}C_{xx})\dd{y}\spsi - (\dd{y}C_{xx})\dd{x} \spsi \nonumber\\
     &+ 2(\dd{x} U) \scxx + 2(\dd{x} V) \scxy \nonumber\\
-    &+ 2C_{xx}\dd{xy} \spsi - 2C_{xy}\dd{xx}\spsi - \frac{1}{\Wi}\scxx
+    &- 2C_{xx}\dd{xy} \spsi + 2C_{xy}\dd{xx}\spsi - \frac{1}{\Wi}\scxx
 \end{align}
 
 \subsection{$C_{yy}$}
 
 \begin{align}
     0 &= \nu \dd{x} \scyy - (\mathbf{V}\cdot \nabla) \scyy \nonumber \\
-    &- (\dd{x}C_{yy})\dd{y}\spsi + (\dd{y}C_{yy})\dd{x} \spsi \nonumber\\
+    &+ (\dd{x}C_{yy})\dd{y}\spsi - (\dd{y}C_{yy})\dd{x} \spsi \nonumber\\
     &+ 2(\dd{y}U)\scxy + 2(\dd{y}V)\scyy \nonumber \\
-    &+ C_{xy}\dd{yy}\spsi - C_{yy}\dd{xy} \spsi - \frac{\scyy}{\Wi} 
+    &- C_{xy}\dd{yy}\spsi + C_{yy}\dd{xy} \spsi - \frac{\scyy}{\Wi} 
 \end{align}
 
 \subsection{$C_{xy}$}
 
 \begin{align}
     0 &= \nu \dd{x} \scxy - (\mathbf{V}\cdot \nabla) \scxy \nonumber \\
-    &- (\dd{x}C_{xy})\dd{y}\spsi + (\dd{y}C_{xy})\dd{x} \spsi \nonumber\\
+    &+ (\dd{x}C_{xy})\dd{y}\spsi - (\dd{y}C_{xy})\dd{x} \spsi \nonumber\\
     &+ (\dd{y}U) \scxx + (\dd{x}V) \scyy \nonumber \\
-    &+ C_{xx}\dd{yy} \spsi - C_{yy} \dd{xx} \spsi - \frac{\scxy}{\Wi}
+    &- C_{xx}\dd{yy} \spsi + C_{yy} \dd{xx} \spsi - \frac{\scxy}{\Wi}
 \end{align}
 
 \subsection{$\psi_{0}$}
 
 \begin{align}
-    0 &= + \Rey\overline{(\dd{x}\Psi) \dd{yy}\spsi} + \Rey\overline{(\dd{yy}\Psi) \dd{x}\spsi } \nonumber \\
-      &+ \beta \overline{\dd{yyy}\spsi} + \frac{1-\beta}{\Wi} \overline{\dd{y}\scxy}
+    0 &= - \Rey\overline{(\dd{xy}\Psi) \dd{y}\spsi}  - \Rey\overline{(\dd{y}\Psi)\dd{xy}\spsi} \nonumber \\
+    &+ \Rey\overline{(\dd{x}\Psi) \dd{yy}\spsi} + \Rey\overline{(\dd{yy}\Psi) \dd{x}\spsi } \nonumber \\
+    &- \beta \overline{\dd{yyy}\spsi} + \frac{1-\beta}{\Wi} \overline{\dd{y}\scxy}
 \end{align}
 \end{document}
