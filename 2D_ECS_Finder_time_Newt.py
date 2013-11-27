@@ -18,13 +18,13 @@ import cPickle as pickle
 
 # SETTINGS---------------------------------------------------------------------
 
-N = 5              # Number of Fourier modes
-M = 40               # Number of Chebychevs (>4)
-Re = 100000.0           # The Reynold's number
-kx  = 1.1
-dt = 0.00001
-
-numTimeSteps = 1000
+N = 1              # Number of Fourier modes
+M = 20               # Number of Chebychevs (>4)
+Re = 5700.0           # The Reynold's number
+kx  = 1.01
+dt = 0.000001
+amp = 0.1
+numTimeSteps = 100000
 
 outFileName = "Psi_iterated.pickle"
 
@@ -134,8 +134,10 @@ oneOverRe = 1./Re
 assert oneOverRe != infty, "Can't set Reynold's to zero!"
 
 # The initial stream-function
-# PSI = random.random(vecLen)/1000000.0
+PSI = amp*random.random(vecLen)
 PSI = zeros(vecLen, dtype='complex')
+# PSI[(N-1)*M:N*M] = amp*pickle.load(open('psi.init','r'))
+PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
 PSI[N*M]   = -2.0/3.0
 PSI[N*M+1] = -3.0/4.0
@@ -171,10 +173,41 @@ for j in range(M):
     DERIVBOT[j] = dot(BBOT, singleDY[:,j])
 del j
 
+# Form the operators
+PSIOP = zeros(((2*N+1)*M, (2*N+1)*M), dtype='complex')
+PSIOP = LAPLAC - 0.5*oneOverRe*dt*BIHARM
+
+# zeroth mode
+PSIOP[N*M:(N+1)*M, :] = 0
+PSIOP[N*M:(N+1)*M, :] = MDY[N*M:(N+1)*M] - 0.5*dt*oneOverRe*MDYYY[N*M:(N+1)*M]
+
+# Apply BCs
+
+for n in range(2*N+1):
+    if n == N: continue     # Don't apply bcs to psi0 mode here
+    # dxPsi(+-1) = 0
+    PSIOP[n*M + M-2, 0 : vecLen] = \
+        concatenate( (zeros(n*M), (n-N)*kx*1.j*BTOP, zeros((2*N-n)*M)) )
+    PSIOP[n*M + M-1, 0 : vecLen] = \
+        concatenate( (zeros(n*M), (n-N)*kx*1.j*BBOT, zeros((2*N-n)*M)) )
+    # dypsi(+-1) = 0 
+    PSIOP[n*M + M-4, 0:vecLen] = \
+        concatenate( (zeros(n*M), DERIVTOP, zeros((2*N-n)*M)) )
+    PSIOP[n*M + M-3, 0:vecLen] = \
+        concatenate( (zeros(n*M), DERIVBOT, zeros((2*N-n)*M)) )
+del n
+
+# dypsi0(+-1) = 0
+PSIOP[N*M + M-3, 0:vecLen] = \
+    concatenate( (zeros(N*M), DERIVTOP, zeros(N*M)) )
+PSIOP[N*M + M-2, 0:vecLen] = \
+    concatenate( (zeros(N*M), DERIVBOT, zeros(N*M)) )
+# psi0(-1) =  0
+PSIOP[N*M + M-1, 0:vecLen] = \
+    concatenate( (zeros(N*M), BBOT, zeros(N*M)) )
 
 # ITERATE THE FLOW PROFILE
 
-PSIOP = zeros(((2*N+1)*M, (2*N+1)*M), dtype='complex')
 RHSVec = zeros(vecLen, dtype='complex')
 
 # form a list of times
@@ -188,37 +221,6 @@ Beginning Time Iteration:
 
 for tindx, currTime in enumerate(timesList):
     
-    # Form the operators
-    PSIOP = LAPLAC - 0.5*oneOverRe*dt*BIHARM
-
-    # zeroth mode
-    PSIOP[N*M:(N+1)*M, :] = 0
-    PSIOP[N*M:(N+1)*M, :] = MDY[N*M:(N+1)*M] - 0.5*dt*oneOverRe*MDYYY[N*M:(N+1)*M]
-
-    # Apply BCs
-
-    for n in range(2*N+1):
-        if n == N: continue     # Don't apply bcs to psi0 mode here
-        # dxPsi(+-1) = 0
-        PSIOP[n*M + M-2, 0 : vecLen] = \
-            concatenate( (zeros(n*M), (n-N)*kx*1.j*BTOP, zeros((2*N-n)*M)) )
-        PSIOP[n*M + M-1, 0 : vecLen] = \
-            concatenate( (zeros(n*M), (n-N)*kx*1.j*BBOT, zeros((2*N-n)*M)) )
-        # dypsi(+-1) = 0 
-        PSIOP[n*M + M-4, 0:vecLen] = \
-            concatenate( (zeros(n*M), DERIVTOP, zeros((2*N-n)*M)) )
-        PSIOP[n*M + M-3, 0:vecLen] = \
-            concatenate( (zeros(n*M), DERIVBOT, zeros((2*N-n)*M)) )
-    del n
-
-    # dypsi0(+-1) = 0
-    PSIOP[N*M + M-3, 0:vecLen] = \
-        concatenate( (zeros(N*M), DERIVTOP, zeros(N*M)) )
-    PSIOP[N*M + M-2, 0:vecLen] = \
-        concatenate( (zeros(N*M), DERIVBOT, zeros(N*M)) )
-    # psi0(-1) =  0
-    PSIOP[N*M + M-1, 0:vecLen] = \
-        concatenate( (zeros(N*M), BBOT, zeros(N*M)) )
 
     # Make the vector for the RHS of the equations
     MMU =   prod_mat(dot(MDY, PSI))
@@ -233,36 +235,39 @@ for tindx, currTime in enumerate(timesList):
     RHSVec[N*M:(N+1)*M] = 0
     RHSVec[N*M:(N+1)*M] = dt*0.5*oneOverRe*dot(MDYYY, PSI)[N*M:(N+1)*M] \
             + dot(MDY, PSI)[N*M:(N+1)*M] \
-            - dt*dot(dot(MMV, MDY), PSI)[N*M:(N+1)*M] \
-            + dt*2*oneOverRe
+            - dt*dot(dot(MMV, MDYY), PSI)[N*M:(N+1)*M]
+    RHSVec[N*M] = dt*2*oneOverRe
 
     # Apply BC's
     
     # dxPsi(+-1) = 0   
     for k in range (2*N+1): 
         if k == N: continue # skip the 0th component 
-        RHSVec[k*M + M-2] = dot((k-N)*1.j*kx*BTOP, PSI[k*M:(k+1)*M])
-        RHSVec[k*M + M-1] = dot((k-N)*1.j*kx*BBOT, PSI[k*M:(k+1)*M])
+        RHSVec[k*M + M-2] = 0
+        RHSVec[k*M + M-1] = 0
     del k
 
     # dyPsi(+-1) = 0 
     for k in range (2*N+1):
         if k == N: continue # skip the 0th component 
-        RHSVec[k*M + M-4] = dot(DERIVTOP, PSI[k*M:(k+1)*M])
-        RHSVec[k*M + M-3] = dot(DERIVBOT, PSI[k*M:(k+1)*M])
+        RHSVec[k*M + M-4] = 0
+        RHSVec[k*M + M-3] = 0
     del k
 
     # dyPsi0(+-1) = 0
-    RHSVec[N*M + M-3] = dot(DERIVTOP, (PSI[N*M:(N+1)*M]))
-    RHSVec[N*M + M-2] = dot(DERIVBOT, (PSI[N*M:(N+1)*M]))
+    RHSVec[N*M + M-3] = 0
+    RHSVec[N*M + M-2] = 0
 
     # Psi0(-1) = 0
-    RHSVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M]))
+    RHSVec[N*M + M-1] = 0
 
     # Take the time step
-    PSI = linalg.solve(PSIOP, RHSVec)
+    for n in range(2*N+1):
+        PSI[n*M:(n+1)*M] = linalg.solve(PSIOP[n*M:(n+1)*M,n*M:(n+1)*M], RHSVec[n*M:(n+1)*M])
+    del n
     L2Norm = linalg.norm(PSI, 2)
 
     print currTime, "\t", L2Norm
-    pickle.dump(PSI, open(outFileName, 'w'))
+
+pickle.dump(PSI, open(outFileName, 'w'))
 

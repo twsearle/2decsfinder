@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 #
 #   matrix checking module
-#   Last modified: Fri  8 Nov 17:26:18 2013
+#   Last modified: Wed 27 Nov 17:36:48 2013
 #
 #------------------------------------------------------------------------------
 """ Checks properties of the matrix used in the problem to diagnose and test
@@ -15,7 +15,7 @@ from numpy import linalg as nplinalg
 import sys
 import matplotlib.pyplot as plt
 
-def matrix_checker(mat, vecLen, output) :
+def matrix_checker(mat, vecLen, outputCond) :
     """Gives you a bunch of facts about the mat"""
 
     print "The matrix determinant is ", linalg.det(mat)
@@ -60,7 +60,7 @@ def matrix_checker(mat, vecLen, output) :
     print "calculate singular values"
     singvals = linalg.svd(mat, compute_uv=False)
     print "are the singular values positive-definite? ", all(nonzero(singvals))
-    if output==True: savetxt("singvals.dat", singvals)
+    if outputCond==True: savetxt("singvals.dat", singvals)
 
 
     plt.figure()
