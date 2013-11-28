@@ -13,7 +13,10 @@ that we have a exact solution to the Navier-Stokes equations.
 # MODULES
 from scipy import *
 from scipy import linalg
+import matplotlib.pyplot as plt
 import cPickle as pickle
+# DEBUGGING MODULES
+from matrix_checker import *
 
 # SETTINGS---------------------------------------------------------------------
 
@@ -30,6 +33,20 @@ outFileName = "Psi_iterated.pickle"
 # -----------------------------------------------------------------------------
 
 # FUNCTIONS
+
+def Cheb_to_real_transform(vec, y_points) :
+    """ calculate the Fourier chebychev transform for the 2D coherent state
+    finder"""
+    rVec = zeros(numYs, dtype='complex')
+    for yIndx in range(numYs):
+        y = y_points[yIndx]
+        for m in range(M):
+            term = vec[m] * cos(m*arccos(y))
+            rVec[yIndx] += term
+    del y,m
+
+    return rVec
+
 def mk_single_diffy():
     """Makes a matrix to differentiate a single vector of Chebyshev's, 
     for use in constructing large differentiation matrix for whole system"""
@@ -129,6 +146,7 @@ CFunc = ones(M)
 CFunc[0] = 2.
 
 oneOverRe = 1. / Re
+print oneOverRe
 assert oneOverRe != infty, "Can't set Reynold's to zero!"
 
 # The initial stream-function
@@ -229,6 +247,18 @@ Beginning Time Iteration:
 =====================================
 
 """
+####TESTS######################################################################
+PSIplots = []
+numYs = 50
+y_points = zeros(numYs, dtype='d')
+for yIndx in range(numYs):
+    y_points[yIndx] = 1.0 - (2.0*yIndx)/(numYs-1.0)
+del yIndx
+PSIr1 = Cheb_to_real_transform(PSI[(N+1)*M: (N+2)*M], y_points)
+PSIplots.append(PSIr1)
+
+#################################################################################
+
 for tindx, currTime in enumerate(timesList):
     
     # Make the vector for the RHS of the equations
@@ -282,7 +312,12 @@ for tindx, currTime in enumerate(timesList):
     del n
     L2Norm = linalg.norm(PSI, 2)
 
+    if tindx % 10:
+        PSIr1 = Cheb_to_real_transform(PSI[(N+1)*M: (N+2)*M], y_points)
+        PSIplots.append(PSIr1)
+        
     print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
 
+pickle.dump(PSIplots, open('plots.dat', 'w'))
 pickle.dump(PSI, open(outFileName, 'w'))
 
