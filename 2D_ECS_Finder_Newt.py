@@ -1,25 +1,33 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Wed 13 Nov 13:30:02 2013
+#   Last modified: Thu 28 Nov 13:43:13 2013
 #
 #-----------------------------------------------------------------------------
 
 """ Program to find Exact coherent states from a given flow profile using
-Newton-Rhaphson and the Oldroyd-B model."""
+Newton-Raphson and the Oldroyd-B model."""
 
 #MODULES
 from scipy import *
 from scipy import linalg
+import ConfigParser
 import matplotlib.pyplot as plt
 import cPickle as pickle
 
 #SETTINGS----------------------------------------
 
-N = 5              # Number of Fourier modes
-M = 30               # Number of Chebychevs (>4)
-Re = 5771.0           # The Reynold's number
-kx  = 1.0
+config = ConfigParser.RawConfigParser()
+fp = open('config.cfg')
+config.readfp(fp)
+N = config.getint('General', 'N')
+M = config.getint('General', 'M')
+Re = config.getfloat('General', 'Re')
+kx = config.getfloat('General', 'kx')
+amp = config.getfloat('Newton-Raphson', 'amp')
+relax = config.getfloat('Newton-Raphson', 'relax')
+
+fp.close()
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
@@ -233,16 +241,18 @@ outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M,
 
 # setup the initial conditions 
 
-vecLen = M*(2*N+1)  
-print"=====================================\n"
+vecLen = M*(2*N+1)
+
+print "=====================================\n"
 print "Settings:"
 print """------------------------------------
 N \t= {N}
 M \t= {M}              
 Re \t= {Re}         
 kx \t= {kx}
+amp\t= {amp}
 ------------------------------------
-        """.format(N=N, M=M, kx=kx, Re=Re )
+        """.format(N=N, M=M, kx=kx, Re=Re, amp=amp )
 
 print "The length of a vector is: ", vecLen
 NuIndx = M - 5           #Choose a high Fourier mode
@@ -253,19 +263,38 @@ oneOverC[0] = 1. / 2.
 CFunc = ones(M)
 CFunc[0] = 2.
 
-PSI = random.random(vecLen)/1000000.0
+almostZero = zeros(M, dtype='D') + 1e-14
 
-#PSI = zeros(vecLen, dtype='complex')
-PSI[N*M]   = -2.0/3.0
-PSI[N*M+1] = -3.0/4.0
-PSI[N*M+2] = 0.0
-PSI[N*M+3] = 1.0/12.0
+PSI = zeros(vecLen, dtype='complex')
 
-Nu  = 0.01
+# I think these need to be minus because we changed from Cambridge to 'Drazin'
+# notation
+
+PSI[N*M]   += 2.0/3.0
+PSI[N*M+1] += 3.0/4.0
+PSI[N*M+2] += 0.0
+PSI[N*M+3] += -1.0/12.0
+
+PSI[(N-1)*M:N*M] = amp*pickle.load(open('psi.init','r'))
+PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
+
+PSI0RS = 0. + 0.j
+for m in range(M):
+    PSI0RS += PSI[(N-1)*M + m]*cos(m*arccos(0.5))
+del m
+
+phaseFactor = 1. - 1.j*(imag(PSI0RS)/real(PSI0RS))
+
+print "The Phase factor: ", phaseFactor
+
+PSI[(N-1)*M:N*M] = phaseFactor*PSI[(N-1)*M:N*M] 
+PSI[N*M:(N+1)*M] = conjugate(phaseFactor)*PSI[N*M:(N+1)*M] 
+
+Nu  = 0.0000001
 
 xVec = zeros((vecLen + 1), dtype='complex')
-xVec[0:vecLen]          = PSI
-xVec[vecLen]          = Nu 
+xVec[0:vecLen] = PSI
+xVec[vecLen] = Nu 
 
 # Useful operators 
 
@@ -307,15 +336,25 @@ print "L2norm:"
 while True:
     (J_x0, f_x0) = solve_eq(xVec)
     dx = linalg.solve(J_x0, -f_x0)
-    xVec = xVec + dx
+    xVec = xVec + relax*dx
     L2norm = linalg.norm(f_x0,2)
     print "\t {L2norm}".format(L2norm=L2norm)
-    if (L2norm < NRdelta): break
+    PSIans = xVec[0:vecLen] 
+    Nuans  = xVec[vecLen]
+    pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
+    if (L2norm < NRdelta): 
+        print 
+        print "------------------------------------\n"
+        PSIans = xVec[0:vecLen] 
+        Nuans  = xVec[vecLen]
+        print "Nu = ", Nu
+        print "=====================================\n"
+        print PSIans[(N-1)*M: N*M]
 
-print "------------------------------------\n"
-PSI = xVec[0:vecLen] 
-Nu  = xVec[vecLen]
-print "Nu = ", Nu
-print"=====================================\n"
+        if any(greater(PSIans[(N-1)*M: N*M], almostZero)):
+            print 'SOLUTION FOUND'
+            pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
+        break
+    
+    if (L2norm > 1e20): break
 
-pickle.dump((PSI,Nu), open(outFileName, 'w'))

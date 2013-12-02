@@ -19,10 +19,10 @@ import cPickle as pickle
 
 N = 2              # Number of Fourier modes
 M = 20               # Number of Chebychevs (>4)
-Re = 500.0           # The Reynold's number
+Re = 3000.0           # The Reynold's number
 kx  = 1.01
-dt = 1.0e-04
-amp = 1.0e-08
+dt = 1.0e-05
+amp = 1.0e-5
 numTimeSteps = 1000
 
 outFileName = "Psi_iterated.pickle"
@@ -137,10 +137,11 @@ PSI[(N-1)*M:N*M] = amp*(random.random(M) + 1.j*random.random(M))
 PSI[N*M:(N+1)*M] = amp*(random.random(M) + 1.j*random.random(M))
 PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
-PSI[N*M]   += -2.0/3.0
-PSI[N*M+1] += -3.0/4.0
+# Which way round do we want this (cambridge or 'Drazin'?)
+PSI[N*M]   += 2.0/3.0
+PSI[N*M+1] += 3.0/4.0
 PSI[N*M+2] += 0.0
-PSI[N*M+3] += 1.0/12.0
+PSI[N*M+3] += -1.0/12.0
 
 # Useful operators 
 
@@ -204,9 +205,8 @@ PSIOP[N*M + M-2, 0:vecLen] = \
 PSIOP[N*M + M-1, 0:vecLen] = \
     concatenate( (zeros(N*M), BBOT, zeros(N*M)) )
 
-# compute lu factorisation, PSIOPLU blocks have
-# l as lower triangle and u as upper 
-# where the diagonal of l is not stored. PSIOPPIV is a pivot column 
+# compute lu factorisation, PSIOPLU blocks have l and u together, without
+# diagonal elements of l. PSIOPPIV elements are pivot vectors for the columns.
 
 PsiLuList = []
 PsiPivList = []
@@ -249,16 +249,13 @@ for tindx, currTime in enumerate(timesList):
 
     # Apply BC's
     
-    # dxPsi(+-1) = 0   
     for k in range (2*N+1): 
         if k == N: continue # skip the 0th component 
+        # dxPsi(+-1) = 0   
         RHSVec[k*M + M-2] = 0
         RHSVec[k*M + M-1] = 0
-    del k
 
-    # dyPsi(+-1) = 0 
-    for k in range (2*N+1):
-        if k == N: continue # skip the 0th component 
+        # dyPsi(+-1) = 0 
         RHSVec[k*M + M-4] = 0
         RHSVec[k*M + M-3] = 0
     del k
@@ -280,6 +277,7 @@ for tindx, currTime in enumerate(timesList):
         PSI[n*M:(n+1)*M] = linalg.lu_solve(lu_piv, RHSVec[n*M:(n+1)*M])
 
     del n
+
     L2Norm = linalg.norm(PSI, 2)
 
     print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
