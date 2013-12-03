@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Thu 28 Nov 13:43:13 2013
+#   Last modified: Tue  3 Dec 17:44:57 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -14,6 +14,7 @@ from scipy import linalg
 import ConfigParser
 import matplotlib.pyplot as plt
 import cPickle as pickle
+import TobySpectralMethods as tsm
 
 #SETTINGS----------------------------------------
 
@@ -31,81 +32,10 @@ fp.close()
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
+tsm.initTSM(N, M, kx)
 #------------------------------------------------
 
 #FUNCTIONS
-
-def mk_single_diffy():
-    """Makes a matrix to differentiate a single vector of Chebyshev's, 
-    for use in constructing large differentiation matrix for whole system"""
-    # make matrix:
-    mat = zeros((M, M), dtype='d')
-    for m in range(M):
-        for p in range(m+1, M, 2):
-            mat[m,p] = 2*p*oneOverC[m]
-
-    return mat
-
-def mk_diff_y():
-    """Make the matrix to differentiate a velocity vector wrt y."""
-    D = mk_single_diffy()
-    MDY = zeros( (vecLen,  vecLen) )
-     
-    for cheb in range(0,vecLen,M):
-        MDY[cheb:cheb+M, cheb:cheb+M] = D
-    del cheb
-    return MDY
-
-def mk_diff_x():
-    """Make matrix to do fourier differentiation wrt x."""
-    MDX = zeros( (vecLen, vecLen), dtype='complex')
-
-    n = -N
-    for i in range(0, vecLen, M):
-        MDX[i:i+M, i:i+M] = eye(M, M, dtype='complex')*n*kx*1.j
-        n += 1
-    del n, i
-    return MDX
-
-def cheb_prod_mat(velA):
-    """Function to return a matrix for left-multiplying two Chebychev vectors"""
-
-    D = zeros((M, M), dtype='complex')
-
-    for n in range(M):
-        for m in range(-M+1,M):     # Bottom of range is inclusive
-            itr = abs(n-m)
-            if (itr < M):
-                D[n, abs(m)] += 0.5*oneOverC[n]*CFunc[itr]*CFunc[abs(m)]*velA[itr]
-    del m, n, itr
-    return D
-
-def prod_mat(velA):
-    """Function to return a matrix ready for the left dot product with another
-    velocity vector"""
-    MM = zeros((vecLen, vecLen), dtype='complex')
-
-    #First make the middle row
-    midMat = zeros((M, vecLen), dtype='complex')
-    for n in range(2*N+1):       # Fourier Matrix is 2*N+1 cheb matricies
-        yprodmat = cheb_prod_mat(velA[n*M:(n+1)*M])
-        endind = 2*N+1-n
-        midMat[:, (endind-1)*M:endind*M] = yprodmat
-    del n
-
-    #copy matrix into MM, according to the matrix for spectral space
-    # top part first
-    for i in range(0, N):
-        MM[i*M:(i+1)*M, :] = column_stack((midMat[:, (N-i)*M:], zeros((M, (N-i)*M))) )
-    del i
-    # middle
-    MM[N*M:(N+1)*M, :] = midMat
-    # bottom 
-    for i in range(0, N):
-        MM[(i+N+1)*M:(i+2+N)*M, :] = column_stack((zeros((M, (i+1)*M)), midMat[:, :(2*N-i)*M] ))
-    del i
-
-    return MM
 
 def solve_eq(xVec):
     """calculates the residuals of equations and the jacobian that ought to
@@ -120,15 +50,15 @@ def solve_eq(xVec):
     LAPLACPSI = dot(LAPLAC, PSI)
 
     # Useful Operators
-    MMU    = prod_mat(U)
-    MMV    = prod_mat(V)
+    MMU    = tsm.prod_mat(U)
+    MMV    = tsm.prod_mat(V)
     VGRAD  = dot(MMU,MDX) + dot(MMV,MDY)
-    MMDXU  = prod_mat(dot(MDX, U))
-    MMDXV  = prod_mat(dot(MDX, V))
-    MMDYU  = prod_mat(dot(MDY, U))
-    MMDYV  = prod_mat(dot(MDY, V))
+    MMDXU  = tsm.prod_mat(dot(MDX, U))
+    MMDXV  = tsm.prod_mat(dot(MDX, V))
+    MMDYU  = tsm.prod_mat(dot(MDY, U))
+    MMDYV  = tsm.prod_mat(dot(MDY, V))
 
-    MMDXPSI   = prod_mat(dot(MDX, LAPLACPSI))
+    MMDXPSI   = tsm.prod_mat(dot(MDX, LAPLACPSI))
 
     # a vector with only constant component
     constVec = zeros(((2*N+1)*M), dtype='complex')
@@ -186,8 +116,8 @@ def solve_eq(xVec):
     jacobian[0:vecLen, 0:vecLen] = - Nu*Re*dot(MDX, LAPLAC) \
                                    + Re*dot(dot(MMU, MDX), LAPLAC) \
                                    + Re*dot(dot(MMV, MDY), LAPLAC) \
-                                   - Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
-                                   + Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
+                                   - Re*dot(tsm.prod_mat(dot(MDY, LAPLACPSI)), MDX) \
+                                   + Re*dot(tsm.prod_mat(dot(MDX, LAPLACPSI)), MDY) \
                                    - BIHARM 
     ##Nu - vector not a product matrix
     jacobian[0:vecLen, vecLen] = Re*dot(MDX, LAPLACPSI)
@@ -200,8 +130,8 @@ def solve_eq(xVec):
     jacobian[N*M:(N+1)*M, :] = 0
     ##u0
     jacobian[N*M:(N+1)*M, 0:vecLen] = \
-                            + Re*dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
-                            + Re*dot(prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
+                            + Re*dot(tsm.prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
+                            + Re*dot(tsm.prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
                             + MDYYY[N*M:(N+1)*M, :]
     ##nu
     jacobian[N*M:(N+1)*M, vecLen] = 0
@@ -256,19 +186,12 @@ amp\t= {amp}
 
 print "The length of a vector is: ", vecLen
 NuIndx = M - 5           #Choose a high Fourier mode
-# Set the oneOverC function: 1/2 for m=0, 1 elsewhere:
-oneOverC = ones(M)
-oneOverC[0] = 1. / 2.
-#set up the CFunc function: 2 for m=0, 1 elsewhere:
-CFunc = ones(M)
-CFunc[0] = 2.
 
 almostZero = zeros(M, dtype='D') + 1e-14
 
 PSI = zeros(vecLen, dtype='complex')
 
-# I think these need to be minus because we changed from Cambridge to 'Drazin'
-# notation
+# Normal people's stream-function notation
 
 PSI[N*M]   += 2.0/3.0
 PSI[N*M+1] += 3.0/4.0
@@ -290,7 +213,10 @@ print "The Phase factor: ", phaseFactor
 PSI[(N-1)*M:N*M] = phaseFactor*PSI[(N-1)*M:N*M] 
 PSI[N*M:(N+1)*M] = conjugate(phaseFactor)*PSI[N*M:(N+1)*M] 
 
-Nu  = 0.0000001
+PSI = pickle.load(open('Alex_psi.pickle','r'))
+
+Nu = 0.35811001226 + 3.61762360029j*1.e-14
+
 
 xVec = zeros((vecLen + 1), dtype='complex')
 xVec[0:vecLen] = PSI
@@ -298,10 +224,10 @@ xVec[vecLen] = Nu
 
 # Useful operators 
 
-MDY = mk_diff_y()
+MDY = tsm.mk_diff_y()
 MDYY = dot(MDY,MDY)
 MDYYY = dot(MDY,MDYY)
-MDX = mk_diff_x()
+MDX = tsm.mk_diff_x()
 MDXX = dot(MDX, MDX)
 MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
@@ -315,7 +241,7 @@ BTOP = ones(M)
 BBOT = ones(M)
 BBOT[1:M:2] = -1
 
-singleDY = mk_single_diffy()
+singleDY = tsm.mk_single_diffy()
 DERIVTOP = zeros((M), dtype='complex')
 DERIVBOT = zeros((M), dtype='complex')
 for j in range(M):
@@ -352,7 +278,7 @@ while True:
         print PSIans[(N-1)*M: N*M]
 
         if any(greater(PSIans[(N-1)*M: N*M], almostZero)):
-            print 'SOLUTION FOUND'
+            print 'Solution Found!'
             pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
         break
     

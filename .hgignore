@@ -1,0 +1,6 @@
+# Use global syntax
+syntax: glob
+
+*.pyc
+*~
+*.swp

@@ -65,7 +65,7 @@ PSIplots = pickle.load(open('plots.dat', 'r'))
 numSteps = len(PSIplots)
 
 fig = matplotlib.pyplot.figure()
-ax = matplotlib.pyplot.axes(xlim=(-1.e-05, 1.e-05), ylim=(-1, 1))
+ax = matplotlib.pyplot.axes(xlim=(-1., 2.), ylim=(-1, 1))
 line, =ax.plot([], [], lw=1)
 
 anim = matplotlib.animation.FuncAnimation(fig, animate, init_func=init, frames=numSteps,

@@ -13,16 +13,17 @@ that we have a exact solution to the Navier-Stokes equations.
 # MODULES
 from scipy import *
 from scipy import linalg
+from matrix_checker import matrix_checker
 import cPickle as pickle
 
 # SETTINGS---------------------------------------------------------------------
 
-N = 2              # Number of Fourier modes
+N = 1              # Number of Fourier modes
 M = 20               # Number of Chebychevs (>4)
-Re = 3000.0           # The Reynold's number
+Re = 2000.0           # The Reynold's number
 kx  = 1.01
-dt = 1.0e-05
-amp = 1.0e-5
+dt = 0.01
+amp = 0.1
 numTimeSteps = 1000
 
 outFileName = "Psi_iterated.pickle"
@@ -133,8 +134,8 @@ assert oneOverRe != infty, "Can't set Reynold's to zero!"
 
 # The initial stream-function
 PSI = zeros(vecLen, dtype='D')
-PSI[(N-1)*M:N*M] = amp*(random.random(M) + 1.j*random.random(M))
-PSI[N*M:(N+1)*M] = amp*(random.random(M) + 1.j*random.random(M))
+# Perturb first 3 Chebyshevs
+PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
 PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
 # Which way round do we want this (cambridge or 'Drazin'?)
@@ -156,66 +157,74 @@ BIHARM = dot(LAPLAC, LAPLAC)
 MDXLAPLAC = dot(MDX, LAPLAC)
 MDYLAPLAC = dot(MDY, LAPLAC)
 
-#Identity
-II = eye(vecLen, vecLen, dtype='complex')
+# single mode Operators
+SMDY = mk_single_diffy()
+SMDYY = dot(SMDY, SMDY)
+SMDYYY = dot(SMDY, SMDYY)
+
+# Identity
+SII = eye(M, M, dtype='complex')
 
 # Boundary arrays
 BTOP = ones(M)
 BBOT = ones(M)
 BBOT[1:M:2] = -1
 
-singleDY = mk_single_diffy()
 DERIVTOP = zeros((M), dtype='complex')
 DERIVBOT = zeros((M), dtype='complex')
 for j in range(M):
-    DERIVTOP[j] = dot(BTOP, singleDY[:,j]) 
-    DERIVBOT[j] = dot(BBOT, singleDY[:,j])
+    DERIVTOP[j] = dot(BTOP, SMDY[:,j]) 
+    DERIVBOT[j] = dot(BBOT, SMDY[:,j])
 del j
 
 # Form the operators
-PSIOP = zeros(((2*N+1)*M, (2*N+1)*M), dtype='complex')
-PSIOP = LAPLAC - 0.5*oneOverRe*dt*BIHARM
+PsiOpInvList = []
+for i in range(N):
+    n = i-N
+
+    PSIOP = zeros((2*M, 2*M), dtype='complex')
+    SLAPLAC = -n*n*kx*kx*SII + SMDYY
+
+    PSIOP[0:M, 0:M] = 0
+    PSIOP[0:M, M:2*M] = SII - 0.5*oneOverRe*dt*SLAPLAC
+
+    PSIOP[M:2*M, 0:M] = SLAPLAC
+    PSIOP[M:2*M, M:2*M] = -SII
+
+    # Apply BCs
+    # dypsi(+-1) = 0
+    PSIOP[M-2, :] = concatenate((DERIVTOP, zeros(M, dtype='D')))
+    PSIOP[M-1, :] = concatenate((DERIVBOT, zeros(M, dtype='D')))
+    
+    # dxpsi(+-1) = 0
+    PSIOP[2*M-2, :] = concatenate((BTOP, zeros(M, dtype='D')))
+    PSIOP[2*M-1, :] = concatenate((BBOT, zeros(M, dtype='D')))
+
+    # store the inverse of the relevent part of the matrix
+    PSIOP = linalg.inv(PSIOP)
+    PSIOP = PSIOP[0:M, 0:M]
+
+    PsiOpInvList.append(PSIOP)
+
+del PSIOP
 
 # zeroth mode
-PSIOP[N*M:(N+1)*M, :] = 0
-PSIOP[N*M:(N+1)*M, :] = MDY[N*M:(N+1)*M] - 0.5*dt*oneOverRe*MDYYY[N*M:(N+1)*M]
+Psi0thOp = zeros((M,M), dtype='D')
+Psi0thOp = SMDY - 0.5*dt*oneOverRe*SMDYYY
 
 # Apply BCs
 
-for n in range(2*N+1):
-    if n == N: continue     # Don't apply bcs to psi0 mode here
-    # dxPsi(+-1) = 0
-    PSIOP[n*M + M-2, 0 : vecLen] = \
-        concatenate( (zeros(n*M), (n-N)*kx*1.j*BTOP, zeros((2*N-n)*M)) )
-    PSIOP[n*M + M-1, 0 : vecLen] = \
-        concatenate( (zeros(n*M), (n-N)*kx*1.j*BBOT, zeros((2*N-n)*M)) )
-    # dypsi(+-1) = 0 
-    PSIOP[n*M + M-4, 0:vecLen] = \
-        concatenate( (zeros(n*M), DERIVTOP, zeros((2*N-n)*M)) )
-    PSIOP[n*M + M-3, 0:vecLen] = \
-        concatenate( (zeros(n*M), DERIVBOT, zeros((2*N-n)*M)) )
-del n
-
 # dypsi0(+-1) = 0
-PSIOP[N*M + M-3, 0:vecLen] = \
-    concatenate( (zeros(N*M), DERIVTOP, zeros(N*M)) )
-PSIOP[N*M + M-2, 0:vecLen] = \
-    concatenate( (zeros(N*M), DERIVBOT, zeros(N*M)) )
+Psi0thOp[M-3, :] = DERIVTOP
+Psi0thOp[M-2, :] = DERIVBOT
 # psi0(-1) =  0
-PSIOP[N*M + M-1, 0:vecLen] = \
-    concatenate( (zeros(N*M), BBOT, zeros(N*M)) )
+Psi0thOp[M-1, :] = BBOT
 
 # compute lu factorisation, PSIOPLU blocks have l and u together, without
 # diagonal elements of l. PSIOPPIV elements are pivot vectors for the columns.
 
-PsiLuList = []
-PsiPivList = []
 
-for n in range(2*N+1):
-    (lu, piv) = linalg.lu_factor(PSIOP[n*M:(n+1)*M, n*M:(n+1)*M])
-    PsiLuList.append(lu)
-    PsiPivList.append(piv)
-del n, lu, piv
+lu0, piv0 = linalg.lu_factor(Psi0thOp)
 
 # # ITERATE THE FLOW PROFILE
 
@@ -249,16 +258,14 @@ for tindx, currTime in enumerate(timesList):
 
     # Apply BC's
     
-    for k in range (2*N+1): 
-        if k == N: continue # skip the 0th component 
-        # dxPsi(+-1) = 0   
-        RHSVec[k*M + M-2] = 0
-        RHSVec[k*M + M-1] = 0
-
-        # dyPsi(+-1) = 0 
-        RHSVec[k*M + M-4] = 0
-        RHSVec[k*M + M-3] = 0
-    del k
+    for n in range (N+1): 
+        # dyPsi(+-1) = 0  
+        # Only impose the BC which is actually present in the inverse operator
+        # we are dealing with. Remember that half the Boundary Conditions were
+        # imposed on phi, which was accounted for implicitly when we ignored it.
+        RHSVec[n*M + M-2] = 0
+        RHSVec[n*M + M-1] = 0
+    del n
 
     # dyPsi0(+-1) = 0
     RHSVec[N*M + M-3] = 0
@@ -268,15 +275,16 @@ for tindx, currTime in enumerate(timesList):
     RHSVec[N*M + M-1] = 0
 
     # Take the time step
-    for n in range(2*N+1):
 
-        # PSI[n*M:(n+1)*M] = linalg.solve(PSIOP[n*M:(n+1)*M,n*M:(n+1)*M], RHSVec[n*M:(n+1)*M])
-        # Lu factorisation is faster
+    PSI[N*M:(N+1)*M] = linalg.lu_solve((lu0, piv0), RHSVec[N*M:(N+1)*M])
 
-        lu_piv = (PsiLuList[n], PsiPivList[n])
-        PSI[n*M:(n+1)*M] = linalg.lu_solve(lu_piv, RHSVec[n*M:(n+1)*M])
-
-    del n
+    for n in range(N):
+        PSI[n*M:(n+1)*M] = dot(PsiOpInvList[n], RHSVec[n*M:(n+1)*M])
+    del n  
+ 
+    for n in range(N+1,2*N+1):
+        PSI[n*M:(n+1)*M] = conj(PSI[(2*N-n)*M:(2*N-n+1)*M])
+ 
 
     L2Norm = linalg.norm(PSI, 2)
 
