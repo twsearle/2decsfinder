@@ -14,6 +14,7 @@ that we have a exact solution to the Navier-Stokes equations.
 from scipy import *
 from scipy import linalg
 import cPickle as pickle
+import ConfigParser
 
 # SETTINGS---------------------------------------------------------------------
 
@@ -22,10 +23,29 @@ M = 20               # Number of Chebychevs (>4)
 Re = 2000.0           # The Reynold's number
 kx  = 1.01
 dt = 0.01
-amp = 0.1
-numTimeSteps = 1000
+numTimeSteps = 100
+numFrames = 2
 
-outFileName = "Psi_iterated.pickle"
+config = ConfigParser.RawConfigParser()
+fp = open('config.cfg')
+config.readfp(fp)
+N = config.getint('General', 'N')
+M = config.getint('General', 'M')
+Re = config.getfloat('General', 'Re')
+kx = config.getfloat('General', 'kx')
+dt = config.getfloat('Time Iteration', 'dt')
+numTimeSteps = config.getint('Time Iteration', 'numTimeSteps')
+numFrames = config.getint('Time Iteration', 'numFrames')
+fp.close()
+
+amp = 0.1
+
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
+baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+outFileName  = "psi{0}".format(baseFileName)
+outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
+outFileNameTime = "series-PSI{0}".format(baseFileName)
+
 
 # -----------------------------------------------------------------------------
 
@@ -137,7 +157,6 @@ PSI = zeros(vecLen, dtype='complex')
 PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
 PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
-# Which way round do we want this (cambridge or 'Drazin'?)
 PSI[N*M]   += 2.0/3.0
 PSI[N*M+1] += 3.0/4.0
 PSI[N*M+2] += 0.0
@@ -232,6 +251,11 @@ RHSVec = zeros(vecLen, dtype='complex')
 # form a list of times
 timesList = r_[dt:dt*numTimeSteps:dt]
 
+# open the files
+traceOutFp = open(outFileNameTrace, 'w')
+psiSeriesFp = open(outFileNameTime, 'w')
+pickle.dump(PSI, psiSeriesFp)
+
 print """
 Beginning Time Iteration:
 =====================================
@@ -287,7 +311,12 @@ for tindx, currTime in enumerate(timesList):
 
     L2Norm = linalg.norm(PSI, 2)
 
-    print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
+    if not tindx % (numTimeSteps/numFrames):
+        pickle.dump(PSI, psiSeriesFp)
+        print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
 
+    traceOutFp.write("{0:15.8g} \t {1:15.8g}\n".format(currTime, L2Norm))
+
+traceOutFp.close()
+psiSeriesFp.close()
 pickle.dump(PSI, open(outFileName, 'w'))
-

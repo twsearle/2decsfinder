@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed 04 Dec 2013 16:54:05 GMT
+#   Last modified: Wed  4 Dec 18:05:54 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -23,12 +23,12 @@ Re = 3500.0           # The Reynold's number
 kx  = 1.302
 dt = 0.001
 amp = 0.1
-numTimeSteps = 1000000
+numTimeSteps = 100
 
 kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
 baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
 outFileName  = "psi{0}".format(baseFileName)
-outFileNameTrace = "trace{0}".format(baseFileName)
+outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
 outFileName0 = "series-psi0{0}".format(baseFileName)
 outFileName1 = "series-psi1{0}".format(baseFileName)
 outFileNameTime = "series-PSI{0}".format(baseFileName)
@@ -336,7 +336,7 @@ for tindx, currTime in enumerate(timesList):
 
     traceOutFp.write("{0:15.8g} \t {1:15.8g}\n".format(currTime, L2Norm))
 
-outFp.close()
+traceOutFp.close()
 pickle.dump(PSIplots0, open(outFileName0, 'w'))
 pickle.dump(PSIplots, open(outFileName1, 'w'))
 pickle.dump(PSIFrames, open(outFileNameTime, 'w'))
