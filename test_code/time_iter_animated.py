@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed 04 Dec 2013 09:27:59 GMT
+#   Last modified: Wed 04 Dec 2013 09:53:34 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -17,21 +17,23 @@ import cPickle as pickle
 
 # SETTINGS---------------------------------------------------------------------
 
-N = 1              # Number of Fourier modes
+N = 2              # Number of Fourier modes
 M = 30               # Number of Chebychevs (>4)
-Re = 4000.0           # The Reynold's number
+Re = 3500.0           # The Reynold's number
 kx  = 1.302
 dt = 0.001
 amp = 0.1
 numTimeSteps = 1000000
 
 kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
-outFileName = "psi-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
-outFileName0 = "series-psi0-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+outFileName  = "psi{0}".format(baseFileName)
+outFileNameTrace = "trace{0}".format(baseFileName)
+outFileName0 = "series-psi0{0}".format(baseFileName)
+outFileName1 = "series-psi1{0}".format(baseFileName)
+outFileNameTime = "series-PSI{0}".format(baseFileName)
 
-outFileName1 = "series-psi1-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
-
-outFileNameTime = "series-psi1-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+traceOutFp = open(outFileNameTrace, 'w')
 
 # -----------------------------------------------------------------------------
 
@@ -330,12 +332,12 @@ for tindx, currTime in enumerate(timesList):
         PSIplots0.append(PSIr0)
         PSIplots.append(PSIr1)
         PSIFrames.append(copy(PSI[:]))
+        print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
 
-        
-    print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
+    traceOutFp.write("{0:15.8g} \t {1:15.8g}\n".format(currTime, L2Norm))
 
+outFp.close()
 pickle.dump(PSIplots0, open(outFileName0, 'w'))
 pickle.dump(PSIplots, open(outFileName1, 'w'))
 pickle.dump(PSIFrames, open(outFileNameTime, 'w'))
 pickle.dump(PSI, open(outFileName, 'w'))
-
