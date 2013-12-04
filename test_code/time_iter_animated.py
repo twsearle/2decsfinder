@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed 04 Dec 2013 16:27:57 GMT
+#   Last modified: Wed 04 Dec 2013 16:54:05 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -231,7 +231,7 @@ del PSIOP
 
 # zeroth mode
 Psi0thOp = zeros((M,M), dtype='complex')
-Psi0thOp = SMDY - 0.5*dt*oneOverRe*SMDYYY
+Psi0thOp = SMDY - 0.5*dt*oneOverRe*SMDYYY + 0j
 
 # Apply BCs
 
