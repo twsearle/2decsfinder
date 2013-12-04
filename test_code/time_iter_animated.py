@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed 04 Dec 2013 09:53:34 GMT
+#   Last modified: Wed 04 Dec 2013 16:27:57 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -155,7 +155,7 @@ print oneOverRe
 assert oneOverRe != infty, "Can't set Reynold's to zero!"
 
 # The initial stream-function
-PSI = zeros(vecLen, dtype='D')
+PSI = zeros(vecLen, dtype='complex')
 PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
 PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
@@ -214,12 +214,12 @@ for i in range(N):
 
     # Apply BCs
     # dypsi(+-1) = 0
-    PSIOP[M-2, :] = concatenate((DERIVTOP, zeros(M, dtype='D')))
-    PSIOP[M-1, :] = concatenate((DERIVBOT, zeros(M, dtype='D')))
+    PSIOP[M-2, :] = concatenate((DERIVTOP, zeros(M, dtype='complex')))
+    PSIOP[M-1, :] = concatenate((DERIVBOT, zeros(M, dtype='complex')))
     
     # dxpsi(+-1) = 0
-    PSIOP[2*M-2, :] = concatenate((BTOP, zeros(M, dtype='D')))
-    PSIOP[2*M-1, :] = concatenate((BBOT, zeros(M, dtype='D')))
+    PSIOP[2*M-2, :] = concatenate((BTOP, zeros(M, dtype='complex')))
+    PSIOP[2*M-1, :] = concatenate((BBOT, zeros(M, dtype='complex')))
 
     # store the inverse of the relevent part of the matrix
     PSIOP = linalg.inv(PSIOP)
@@ -230,7 +230,7 @@ for i in range(N):
 del PSIOP
 
 # zeroth mode
-Psi0thOp = zeros((M,M), dtype='D')
+Psi0thOp = zeros((M,M), dtype='complex')
 Psi0thOp = SMDY - 0.5*dt*oneOverRe*SMDYYY
 
 # Apply BCs
