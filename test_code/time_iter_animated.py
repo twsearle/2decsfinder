@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified:
+#   Last modified: Wed 04 Dec 2013 09:27:59 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -13,10 +13,7 @@ that we have a exact solution to the Navier-Stokes equations.
 # MODULES
 from scipy import *
 from scipy import linalg
-import matplotlib.pyplot as plt
 import cPickle as pickle
-# DEBUGGING MODULES
-from matrix_checker import *
 
 # SETTINGS---------------------------------------------------------------------
 
@@ -28,7 +25,13 @@ dt = 0.001
 amp = 0.1
 numTimeSteps = 1000000
 
-outFileName = "Psi_iterated.pickle"
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
+outFileName = "psi-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+outFileName0 = "series-psi0-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+
+outFileName1 = "series-psi1-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+
+outFileNameTime = "series-psi1-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
 
 # -----------------------------------------------------------------------------
 
@@ -331,8 +334,8 @@ for tindx, currTime in enumerate(timesList):
         
     print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
 
-pickle.dump(PSIplots0, open('plots.dat', 'w'))
-pickle.dump(PSIplots, open('plots1stmode.dat', 'w'))
-pickle.dump(PSIFrames, open('psi_time.pickle', 'w'))
+pickle.dump(PSIplots0, open(outFileName0, 'w'))
+pickle.dump(PSIplots, open(outFileName1, 'w'))
+pickle.dump(PSIFrames, open(outFileNameTime, 'w'))
 pickle.dump(PSI, open(outFileName, 'w'))
 
