@@ -3,6 +3,10 @@
 #
 #
 #-------------------------------------------------------------------------------
+"""
+Plots only the final state of the time iterated system.
+"""
+
 
 #MODULES
 from scipy import *
@@ -11,17 +15,33 @@ import cPickle as pickle
 import sys
 from matplotlib import pyplot as plt
 from matplotlib import rc
+import ConfigParser
 
-#SETTINGS----------------------------------------
+#SETTINGS---------------------------------------------------
 
-N = 5              # Number of Fourier modes
-M = 40               # Number of Chebychevs (>4)
-Re = 5771.0           # The Reynold's number
-kx  = 1.4
+config = ConfigParser.RawConfigParser()
+fp = open('config.cfg')
+config.readfp(fp)
+N = config.getint('General', 'N')
+M = config.getint('General', 'M')
+Re = config.getfloat('General', 'Re')
+kx = config.getfloat('General', 'kx')
 
-numYs = 50
+totTime = config.getfloat('Time Iteration', 'totTime')
+dt = config.getfloat('Time Iteration', 'dt')
 
-#------------------------------------------------
+numYs = config.getint('Plotting', 'numYs')
+fp.close()
+
+numTimeSteps = int(totTime / dt)
+assert totTime % dt, "non-integer number of time steps!"
+
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
+baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+
+inFileName = "psi{0}".format(baseFileName)
+
+#-----------------------------------------------------------
 
 def Cheb_to_real_transform(vec, y_points) :
     """ calculate the Fourier chebychev transform for the 2D coherent state
@@ -79,9 +99,8 @@ oneOverC[0] = 1. / 2.
 # Set up the CFunc function: 2 for m=0, 1 elsewhere:
 CFunc = ones(M)
 CFunc[0] = 2.
-
 Psi = zeros((2*N+1)*M, dtype='complex')
-Psi = pickle.load(open(sys.argv[1], 'r'))
+Psi = pickle.load(open(inFileName, 'r'))
 
 y_points = zeros(numYs, dtype='d')
 for yIndx in range(numYs):
@@ -111,20 +130,20 @@ for n in range(N,2*N+1):
     #plt.plot(y_points, f, 'ro')
     plt.subplot(311)
     titleString = 'psi n = {mode} mode'.format(mode=n-N)
-    plt.plot(y_points, real(PSIr1), 'bo-')
-    plt.plot(y_points, imag(PSIr1), 'ro-')
+    plt.plot(y_points, real(PSIr1), 'b-')
+    plt.plot(y_points, imag(PSIr1), 'r-')
     plt.title(titleString)
 
     plt.subplot(312)
     titleString = 'dy psi n = {mode} mode'.format(mode=n-N)
-    plt.plot(y_points, real(PSIdy), 'bo-')
-    plt.plot(y_points, imag(PSIdy), 'ro-')
+    plt.plot(y_points, real(PSIdy), 'b-')
+    plt.plot(y_points, imag(PSIdy), 'r-')
     plt.title(titleString)
 
     plt.subplot(313)
     titleString = 'dx psi n = {mode} mode'.format(mode=n-N)
-    plt.plot(y_points, real(PSIdx), 'bo-')
-    plt.plot(y_points, imag(PSIdx), 'ro-')
+    plt.plot(y_points, real(PSIdx), 'b-')
+    plt.plot(y_points, imag(PSIdx), 'r-')
     plt.title(titleString)
     plt.savefig(r'psi{n}.pdf'.format(n=n-N))
     plt.show()

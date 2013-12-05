@@ -2,7 +2,7 @@
 #   colour map plotter for 2D coherent state finder
 #   animated.
 #
-#   Last modified: Tue  3 Dec 14:12:36 2013
+#   Last modified: Thu  5 Dec 13:58:11 2013
 #
 #------------------------------------------------------------------------------
 
@@ -18,32 +18,32 @@ import matplotlib.animation
 
 #SETTINGS----------------------------------------
 
-N = 1
-M = 30
-Re = 5770
-kx = 1.302
-numYs = 50
-numXs = 50
+config = ConfigParser.RawConfigParser()
+fp = open('config.cfg')
+config.readfp(fp)
+N = config.getint('General', 'N')
+M = config.getint('General', 'M')
+Re = config.getfloat('General', 'Re')
+kx = config.getfloat('General', 'kx')
+
+totTime = config.getfloat('Time Iteration', 'totTime')
+dt = config.getfloat('Time Iteration', 'dt')
+
+numYs = config.getint('Plotting', 'numYs')
+numXs = config.getint('Plotting', 'numXs')
+fp.close()
+
+numTimeSteps = int(totTime / dt)
+assert totTime % dt, "non-integer number of time steps!"
+
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx, 'time': numTimeSteps*dt }
+baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+inFileName = "RS-series-PSI{0}".format(baseFileName)
+outFileName = "movie{0}.mp4".format(baseFileName[:-7])
 
 #------------------------------------------------
 
 # FUNCTIONS
-
-def Fourier_cheb_transform(vec, x_points, y_points) :
-    """ calculate the Fourier chebychev transform for the 2D coherent state
-    finder"""
-    rVec = zeros((numXs, numYs),dtype='complex')
-    for xIndx in range(numXs):
-        for yIndx in range(numYs):
-            for n in range(2*N+1):
-                for m in range(M):
-                    x = x_points[xIndx]
-                    y = y_points[yIndx]
-                    term = vec[n*M + m] * exp(1.j*(n-N)*kx*x) * cos(m*arccos(y))
-                    rVec[yIndx, xIndx] += term
-    del x,y,n,m
-
-    return real(rVec)
 
 def animate(i):
     psi = real(Psi2DList[i])
@@ -63,22 +63,22 @@ for yIndx in range(numYs):
     y_points[yIndx] = (2.0*yIndx)/(numYs-1.0) - 1.0 
 del yIndx
 
-# Read in
-#PsiList = pickle.load(open('psi_time.pickle', 'r'))
+# Read in the transformed data
 
-#print PsiList[0][(N+1)*M:(N+2)*M]
-#numFrames = len(PsiList)
+Psi2DList = []
+inFp = open(inFileName, 'r')
+while True:
+    # Try to read in another pickled vector
+    try:
+        Psi2DList.append(pickle.load(inFp))
+    # Throw exception and exit loop if fail
+    except(EOFError):
+        break
+inFp.close()
 
-# Perform transformation
-#Psi2DList = []
-#for i in range(numFrames):
-#    print i
-#    Psi2DList.append(Fourier_cheb_transform(PsiList[i], x_points, y_points))
-
-#pickle.dump(Psi2DList, open('transformed_time.pickle', 'w'))
-Psi2DList = pickle.load(open('transformed_time.pickle', 'r'))
 numFrames = len(Psi2DList)
-#print all(equal(Psi2DList[0], Psi2DList[numFrames-1]))
+
+# Plot 
 
 # make meshes
 #grid_x, grid_y = meshgrid(x_points, y_points)
@@ -86,10 +86,8 @@ numFrames = len(Psi2DList)
 fig = matplotlib.pyplot.figure()
 im = matplotlib.pyplot.imshow(real(Psi2DList[0]), origin='lower', extent=[0,22,-1,1], aspect=4)
 matplotlib.pyplot.colorbar(orientation='horizontal')
-titleString = 'psi frame {i}'.format(i=0)
-matplotlib.pyplot.title(titleString)
 
 anim = matplotlib.animation.FuncAnimation(fig, animate, frames=numFrames,
                               interval=1, blit=True)
-matplotlib.pyplot.show()
-
+# matplotlib.pyplot.show()
+anim.save(outFileName, fps=30)

@@ -18,14 +18,6 @@ import ConfigParser
 
 # SETTINGS---------------------------------------------------------------------
 
-N = 1              # Number of Fourier modes
-M = 20               # Number of Chebychevs (>4)
-Re = 2000.0           # The Reynold's number
-kx  = 1.01
-dt = 0.01
-numTimeSteps = 100
-numFrames = 2
-
 config = ConfigParser.RawConfigParser()
 fp = open('config.cfg')
 config.readfp(fp)
@@ -34,13 +26,16 @@ M = config.getint('General', 'M')
 Re = config.getfloat('General', 'Re')
 kx = config.getfloat('General', 'kx')
 dt = config.getfloat('Time Iteration', 'dt')
-numTimeSteps = config.getint('Time Iteration', 'numTimeSteps')
+totTime = config.getfloat('Time Iteration', 'totTime')
 numFrames = config.getint('Time Iteration', 'numFrames')
 fp.close()
 
+numTimeSteps = int(totTime / dt)
+assert totTime % dt, "non-integer number of time steps!"
+
 amp = 0.1
 
-kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': totTime}
 baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
 outFileName  = "psi{0}".format(baseFileName)
 outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
@@ -134,9 +129,10 @@ M \t\t= {M}
 Re \t\t= {Re}         
 kx \t\t= {kx}
 dt\t\t= {dt}
+totTime\t\t= {t}
 NumTimeSteps\t= {NT}
 ------------------------------------
-        """.format(N=N, M=M, kx=kx, Re=Re, dt=dt, NT=numTimeSteps)
+        """.format(N=N, M=M, kx=kx, Re=Re, dt=dt, NT=numTimeSteps, t=totTime)
 
 # SET UP
 
