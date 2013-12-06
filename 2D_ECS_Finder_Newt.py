@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue  3 Dec 17:44:57 2013
+#   Last modified: Fri  6 Dec 14:42:18 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -32,6 +32,11 @@ fp.close()
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
+ReOld = Re
+kxOld = kx+0.001
+outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kx, Re=Re)
+inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
+                                                        Re=ReOld)
 tsm.initTSM(N, M, kx)
 #------------------------------------------------
 
@@ -166,8 +171,6 @@ def solve_eq(xVec):
 
 #MAIN
 
-outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M,
-                                                                     kx=kx, Re=Re)
 
 # setup the initial conditions 
 
@@ -198,7 +201,7 @@ PSI[N*M+1] += 3.0/4.0
 PSI[N*M+2] += 0.0
 PSI[N*M+3] += -1.0/12.0
 
-PSI[(N-1)*M:N*M] = amp*pickle.load(open('psi.init','r'))
+PSI[(N-1)*M:N*M] = amp*pickle.load(open(inFileName,'r'))
 PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
 PSI0RS = 0. + 0.j
