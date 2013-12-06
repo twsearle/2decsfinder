@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Fri  6 Dec 14:42:18 2013
+#   Last modified: Fri 06 Dec 2013 15:29:39 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -33,9 +33,10 @@ fp.close()
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
 ReOld = Re
-kxOld = kx+0.001
+kxOld = 1.313
+baseFileName = "-N{N}-M{M}-Re{Re}-kx{kx}".format(N=N, M=M, kx=kx, Re=Re)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kx, Re=Re)
-inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
+inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=40, kx=kxOld,
                                                         Re=ReOld)
 tsm.initTSM(N, M, kx)
 #------------------------------------------------
@@ -194,16 +195,23 @@ almostZero = zeros(M, dtype='D') + 1e-14
 
 PSI = zeros(vecLen, dtype='complex')
 
-# Normal people's stream-function notation
+# Calculate the phase factor
 
-PSI[N*M]   += 2.0/3.0
-PSI[N*M+1] += 3.0/4.0
-PSI[N*M+2] += 0.0
-PSI[N*M+3] += -1.0/12.0
+#PSI[N*M]   += 2.0/3.0
+#PSI[N*M+1] += 3.0/4.0
+#PSI[N*M+2] += 0.0
+#PSI[N*M+3] += -1.0/12.0
 
-PSI[(N-1)*M:N*M] = amp*pickle.load(open(inFileName,'r'))
-PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
+# PSI = pickle.load(open('Alex_psi.pickle','r'))
+
+# Read in profile from previous step
+# PSI[M:2*N*M] = pickle.load(open(inFileName, 'r'))
+
+_, Nu = pickle.load(open(inFileName, 'r'))
+PSI = pickle.load(open('psi'+baseFileName+'-t1000.0.pickle', 'r'))
+
+# apply the phase factor
 PSI0RS = 0. + 0.j
 for m in range(M):
     PSI0RS += PSI[(N-1)*M + m]*cos(m*arccos(0.5))
@@ -215,11 +223,6 @@ print "The Phase factor: ", phaseFactor
 
 PSI[(N-1)*M:N*M] = phaseFactor*PSI[(N-1)*M:N*M] 
 PSI[N*M:(N+1)*M] = conjugate(phaseFactor)*PSI[N*M:(N+1)*M] 
-
-PSI = pickle.load(open('Alex_psi.pickle','r'))
-
-Nu = 0.35811001226 + 3.61762360029j*1.e-14
-
 
 xVec = zeros((vecLen + 1), dtype='complex')
 xVec[0:vecLen] = PSI
@@ -270,7 +273,6 @@ while True:
     print "\t {L2norm}".format(L2norm=L2norm)
     PSIans = xVec[0:vecLen] 
     Nuans  = xVec[vecLen]
-    pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
     if (L2norm < NRdelta): 
         print 
         print "------------------------------------\n"
