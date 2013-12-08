@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Fri 06 Dec 2013 15:29:39 GMT
+#   Last modified: Sat  7 Dec 12:27:06 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -31,13 +31,14 @@ relax = config.getfloat('Newton-Raphson', 'relax')
 fp.close()
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
+y_star  = 0.5
 
-ReOld = Re
-kxOld = 1.313
+ReOld = Re + 10
+kxOld = kx
 baseFileName = "-N{N}-M{M}-Re{Re}-kx{kx}".format(N=N, M=M, kx=kx, Re=Re)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kx, Re=Re)
-inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=40, kx=kxOld,
-                                                        Re=ReOld)
+inFileName= "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
+                                                       Re=ReOld)
 tsm.initTSM(N, M, kx)
 #------------------------------------------------
 
@@ -75,16 +76,16 @@ def solve_eq(xVec):
     residualsVec = zeros((vecLen + 1), dtype='complex')
 
     #####psi
-    residualsVec[0:vecLen] = - Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
-                             + Re*dot(MMU, dot(MDX, LAPLACPSI)) \
-                             + Re*dot(MMV, dot(MDY, LAPLACPSI))  \
-                             - dot(BIHARM, PSI)
+    residualsVec[0:vecLen] = + Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
+                             - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
+                             - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
+                             + dot(BIHARM, PSI)
 
     #####Nu
     residualsVec[vecLen] = dot(SPEEDCONDITION[0:(2*N+1)*M] , PSI)
 
     #####psi0
-    residualsVec[N*M:(N+1)*M] = - Re*dot(VGRAD, U)[N*M:(N+1)*M] \
+    residualsVec[N*M:(N+1)*M] = - Re*dot(dot(MMV,MDY), U)[N*M:(N+1)*M] \
                                 + dot(MDYYY, PSI)[N*M:(N+1)*M] \
     # set the pressure gradient (pressure driven flow)
     residualsVec[N*M] += 2.0
@@ -119,12 +120,12 @@ def solve_eq(xVec):
 
     ###### psi
     ##psi
-    jacobian[0:vecLen, 0:vecLen] = - Nu*Re*dot(MDX, LAPLAC) \
-                                   + Re*dot(dot(MMU, MDX), LAPLAC) \
-                                   + Re*dot(dot(MMV, MDY), LAPLAC) \
-                                   - Re*dot(tsm.prod_mat(dot(MDY, LAPLACPSI)), MDX) \
-                                   + Re*dot(tsm.prod_mat(dot(MDX, LAPLACPSI)), MDY) \
-                                   - BIHARM 
+    jacobian[0:vecLen, 0:vecLen] = + Nu*Re*dot(MDX, LAPLAC) \
+                                   - Re*dot(dot(MMU, MDX), LAPLAC) \
+                                   - Re*dot(dot(MMV, MDY), LAPLAC) \
+                                   + Re*dot(tsm.prod_mat(dot(MDY, LAPLACPSI)), MDX) \
+                                   - Re*dot(tsm.prod_mat(dot(MDX, LAPLACPSI)), MDY) \
+                                   + BIHARM 
     ##Nu - vector not a product matrix
     jacobian[0:vecLen, vecLen] = Re*dot(MDX, LAPLACPSI)
 
@@ -206,23 +207,25 @@ PSI = zeros(vecLen, dtype='complex')
 # PSI = pickle.load(open('Alex_psi.pickle','r'))
 
 # Read in profile from previous step
-# PSI[M:2*N*M] = pickle.load(open(inFileName, 'r'))
 
-_, Nu = pickle.load(open(inFileName, 'r'))
-PSI = pickle.load(open('psi'+baseFileName+'-t1000.0.pickle', 'r'))
+PSI, Nu = pickle.load(open(inFileName, 'r'))
+print inFileName
+print "Nu = ", Nu
+
+# PSI = pickle.load(open('psi'+baseFileName+'-t1000.0.pickle', 'r'))
 
 # apply the phase factor
-PSI0RS = 0. + 0.j
-for m in range(M):
-    PSI0RS += PSI[(N-1)*M + m]*cos(m*arccos(0.5))
-del m
+#PSI0RS = 0. + 0.j
+#for m in range(M):
+#    PSI0RS += PSI[(N-1)*M + m]*cos(m*arccos(y_star))
+#del m
 
-phaseFactor = 1. - 1.j*(imag(PSI0RS)/real(PSI0RS))
+#phaseFactor = 1. - 1.j*(imag(PSI0RS)/real(PSI0RS))
 
-print "The Phase factor: ", phaseFactor
+#print "The Phase factor: ", phaseFactor
 
-PSI[(N-1)*M:N*M] = phaseFactor*PSI[(N-1)*M:N*M] 
-PSI[N*M:(N+1)*M] = conjugate(phaseFactor)*PSI[N*M:(N+1)*M] 
+#PSI[(N-1)*M:N*M] = phaseFactor*PSI[(N-1)*M:N*M] 
+#PSI[N*M:(N+1)*M] = conjugate(phaseFactor)*PSI[N*M:(N+1)*M] 
 
 xVec = zeros((vecLen + 1), dtype='complex')
 xVec[0:vecLen] = PSI
@@ -259,8 +262,8 @@ del j
 #  nu. I will choose y = 0.5. Use the 1st mode for this condition
 SPEEDCONDITION = zeros(vecLen+1, dtype = 'complex')
 for m in range(M):
-    SPEEDCONDITION[(N-1)*M + m] = cos(m*arccos(0.5)) 
-    SPEEDCONDITION[(N+1)*M + m] = -cos(m*arccos(0.5))
+    SPEEDCONDITION[(N-1)*M + m] = cos(m*arccos(y_star)) 
+    SPEEDCONDITION[(N+1)*M + m] = -cos(m*arccos(y_star))
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"
