@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sat  7 Dec 12:27:06 2013
+#   Last modified: Tue 10 Dec 13:55:11 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -33,7 +33,7 @@ fp.close()
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 y_star  = 0.5
 
-ReOld = Re + 10
+ReOld = Re #+ 10
 kxOld = kx
 baseFileName = "-N{N}-M{M}-Re{Re}-kx{kx}".format(N=N, M=M, kx=kx, Re=Re)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kx, Re=Re)
@@ -82,7 +82,9 @@ def solve_eq(xVec):
                              + dot(BIHARM, PSI)
 
     #####Nu
-    residualsVec[vecLen] = dot(SPEEDCONDITION[0:(2*N+1)*M] , PSI)
+    #residualsVec[vecLen] = dot(SPEEDCONDITION[0:(2*N+1)*M] , PSI)
+    residualsVec[vecLen] = imag(dot(SPEEDCONDITION, PSI[(N+1)*M:(N+2)*M]))
+
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - Re*dot(dot(MMV,MDY), U)[N*M:(N+1)*M] \
@@ -130,7 +132,8 @@ def solve_eq(xVec):
     jacobian[0:vecLen, vecLen] = Re*dot(MDX, LAPLACPSI)
 
     ##### Nu 
-    jacobian[vecLen, :] = SPEEDCONDITION
+    jacobian[vecLen, (N+1)*M:(N+2)*M] = -1.j*0.5*SPEEDCONDITION
+    jacobian[vecLen, (N-1)*M:N*M] = 1.j*0.5*SPEEDCONDITION
 
     ###### U0 equation
     #set row to zero
@@ -260,10 +263,9 @@ del j
 
 # Set only the imaginary part of a Fourier component to zero to constrain
 #  nu. I will choose y = 0.5. Use the 1st mode for this condition
-SPEEDCONDITION = zeros(vecLen+1, dtype = 'complex')
+SPEEDCONDITION = zeros(M, dtype = 'complex')
 for m in range(M):
-    SPEEDCONDITION[(N-1)*M + m] = cos(m*arccos(y_star)) 
-    SPEEDCONDITION[(N+1)*M + m] = -cos(m*arccos(y_star))
+    SPEEDCONDITION[m] = cos(m*arccos(y_star)) 
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"
