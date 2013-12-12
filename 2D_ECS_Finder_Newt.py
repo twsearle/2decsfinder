@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue 10 Dec 13:55:11 2013
+#   Last modified: Wed 11 Dec 23:57:26 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -34,7 +34,7 @@ NRdelta = 1e-06     # Newton-Rhaphson tolerance
 y_star  = 0.5
 
 ReOld = Re #+ 10
-kxOld = kx
+kxOld = kx - 0.01
 baseFileName = "-N{N}-M{M}-Re{Re}-kx{kx}".format(N=N, M=M, kx=kx, Re=Re)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kx, Re=Re)
 inFileName= "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
@@ -174,6 +174,19 @@ def solve_eq(xVec):
 
     return(jacobian, residualsVec)
 
+def symmetrise(vec):
+    """symmetrise the vector thingy to make unbroke"""
+
+    tmp = zeros(vecLen, dtype='complex')
+    for n in range(N):
+        tmp[n*M:(n+1)*M] = 0.5*conj(vec[vecLen-(n+1)*M:vecLen-n*M])\
+                         + 0.5*vec[n*M:(n+1)*M]
+        tmp[vecLen-(n+1)*M:vecLen-n*M] = conj(tmp[n*M:(n+1)*M])
+    del n
+    tmp[N*M:(N+1)*M] = real(vec[N*M:(N+1)*M])
+
+    return tmp
+
 #MAIN
 
 
@@ -205,13 +218,17 @@ PSI = zeros(vecLen, dtype='complex')
 #PSI[N*M+1] += 3.0/4.0
 #PSI[N*M+2] += 0.0
 #PSI[N*M+3] += -1.0/12.0
-
-
-# PSI = pickle.load(open('Alex_psi.pickle','r'))
+#f = open('field_Re=3000.0_kx=1.313_N=2_M_40.txt','r')
+#_ = pickle.load(f)
+#_ = pickle.load(f)
+#xVec = pickle.load(f)
+#PSI = xVec[:(2*N+1)*M]
+#Nu = xVec[(2*N+1)*M]
 
 # Read in profile from previous step
 
 PSI, Nu = pickle.load(open(inFileName, 'r'))
+#PSI[3*M:8*M], Nu = pickle.load(open(inFileName, 'r'))
 print inFileName
 print "Nu = ", Nu
 
@@ -291,6 +308,7 @@ while True:
             print 'Solution Found!'
             pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
         break
+    xVec[:(2*N+1)*M] = symmetrise(xVec[:(2*N+1)*M])
     
     if (L2norm > 1e20): break
 

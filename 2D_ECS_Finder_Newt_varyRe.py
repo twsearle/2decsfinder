@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue 10 Dec 14:01:02 2013
+#   Last modified: Wed 11 Dec 23:52:19 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -35,9 +35,11 @@ y_star  = 0.5
 ReOld = Re 
 kxOld = kx
 baseFileName = "-N{N}-M{M}-Re{Re}-kx{kx}".format(N=N, M=M, kx=kx, Re=Re)
-inFileName= "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
+inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
                                                        Re=ReOld)
-ReList = flipud(r_[0:Re+10:10])
+outTraceFileName = "KE-trace-N{N}-M{M}-kx{kx}".format(N=N, M=M, kx=kx)
+
+ReList = flipud(r_[0:Re+1:1])
 
 tsm.initTSM(N, M, kx)
 #------------------------------------------------
@@ -174,6 +176,26 @@ def solve_eq(xVec):
 
     return(jacobian, residualsVec)
 
+def symmetrise(vec):
+    """symmetrise the vector thingy to make unbroke"""
+
+    tmp = zeros(vecLen, dtype='complex')
+    for n in range(N):
+        tmp[n*M:(n+1)*M] = 0.5*conj(vec[vecLen-(n+1)*M:vecLen-n*M])\
+                         + 0.5*vec[n*M:(n+1)*M]
+        tmp[vecLen-(n+1)*M:vecLen-n*M] = conj(tmp[n*M:(n+1)*M])
+    del n
+    tmp[N*M:(N+1)*M] = real(vec[N*M:(N+1)*M])
+
+    return tmp
+
+def mk_cheb_int():
+    integrator = zeros(M, dtype='d')
+    for m in range(0,M,2):
+        integrator[m] = (1 + cos(m*pi)) / (1-m*m)
+    del m
+    return integrator
+
 #MAIN
 
 
@@ -245,6 +267,8 @@ MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
 BIHARM = dot(LAPLAC, LAPLAC)
 
+INTY = mk_cheb_int()
+
 #Identity
 II = eye(vecLen, vecLen, dtype='complex')
 
@@ -267,12 +291,17 @@ SPEEDCONDITION = zeros(M, dtype = 'complex')
 for m in range(M):
     SPEEDCONDITION[m] = cos(m*arccos(y_star)) 
 
+outKEfp = open(outTraceFileName, 'w')
+for Re in ReList:
     outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kx, Re=Re)
 
-    print "Begin Newton-Rhaphson"
+    print "Begin Newton-Rhaphson at Re = ", Re
     print "------------------------------------"
     print "L2norm:"
-    while True:
+    L2norm = 1.0
+
+    while (L2norm > NRdelta):
+        # Iterate until you find a solution
         (J_x0, f_x0) = solve_eq(xVec)
         dx = linalg.solve(J_x0, -f_x0)
         xVec = xVec + relax*dx
@@ -280,25 +309,46 @@ for m in range(M):
         print "\t {L2norm}".format(L2norm=L2norm)
         PSIans = xVec[0:vecLen] 
         Nuans  = xVec[vecLen]
-        if (L2norm < NRdelta): 
-            print 
-            print "------------------------------------\n"
-            PSIans = xVec[0:vecLen] 
-            Nuans  = xVec[vecLen]
-            print "Nu = ", Nu
-            print "=====================================\n"
-            print PSIans[(N-1)*M: N*M]
-
-            if any(greater(PSIans[(N-1)*M: N*M], almostZero)):
-                print 'Solution Found!'
-                pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
-                PSI = PSIans
-                Nu = Nuans
-            break
         
         if (L2norm > 1e20):
+            # If convergence fails once, end the program
             print "Lost stability"
+            outKEfp.close()
             exit(1)
-            break
 
+        # Force symmetrisation
+        xVec[:vecLen] = symmetrise(xVec[:vecLen])
 
+    print "------------------------------------\n"
+    PSIans = xVec[0:vecLen] 
+    Nuans  = xVec[vecLen]
+    print "Nu = ", Nu
+    print "=====================================\n"
+    # print PSIans[(N-1)*M: N*M]
+
+    # Make sure solution is not trivial before outputing
+    if any(greater(PSIans[(N-1)*M: N*M], almostZero)):
+        print 'Solution Found!'
+        pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
+        PSI = PSIans
+        Nu = Nuans
+
+        realityArr = []
+        for n in range(N):
+            cond = allclose(PSI[n*M:(n+1)*M],conj(PSI[(2*N-n)*M:(2*N+1-n)*M]))
+            realityArr.append(cond)
+        del n
+        realityTest = all(realityArr)
+        
+        U = dot(MDY, PSI)
+        V = -dot(MDX, PSI)
+        MMU = tsm.prod_mat(U)
+        MMV = tsm.prod_mat(V)
+        U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
+        assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
+        KE0 = 0.5*real(dot(INTY, U0sq))
+        print 'KE0 = ', KE0
+        outKEfp.write("{0}\t{1}\t{2}\t{3}".format(Re, kx, KE0, realityTest))
+        outKEfp.flush()
+
+outKEfp.close()
