@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Wed 11 Dec 23:52:19 2013
+#   Last modified: Thu 12 Dec 09:47:19 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -348,7 +348,7 @@ for Re in ReList:
         assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
         KE0 = 0.5*real(dot(INTY, U0sq))
         print 'KE0 = ', KE0
-        outKEfp.write("{0}\t{1}\t{2}\t{3}".format(Re, kx, KE0, realityTest))
+        outKEfp.write("{0}\t{1}\t{2}\t{3}\n".format(Re, kx, KE0, realityTest))
         outKEfp.flush()
 
 outKEfp.close()
