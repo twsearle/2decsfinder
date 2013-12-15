@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Wed 13 Nov 13:56:54 2013
+#   Last modified: Sun 15 Dec 13:28:02 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -14,22 +14,29 @@ from scipy import linalg
 import matplotlib.pyplot as plt
 import cPickle as pickle
 
-# import one of my extra functions from a different file
-import sys
-sys.path.append(r"./analysis_code/")
-from matrix_checker import matrix_checker
 
 #SETTINGS----------------------------------------
 
-N = 3              # Number of Fourier modes
-M = 40               # Number of Chebychevs (>4)
+N = 2              # Number of Fourier modes
+M = 40             # Number of Chebychevs (>4)
 Wi = 0.00001           # The Weissenberg number
-Re = 5770.0           # The Reynold's number
-beta = 0.99
-kx  = 1.0
+Re = 3000.0           # The Reynold's number
+beta = 0.1
+kx  = 1.313
+y_star = 0.5
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
+consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
+NOld = N  
+MOld = M #- 10
+kxOld = kx
+ReOld = Re
+bOld = beta 
+WiOld = Wi
+oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
+inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
+outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
 #------------------------------------------------
 
 #FUNCTIONS
@@ -118,8 +125,10 @@ def solve_eq(xVec):
 
 
     # Useful Vectors
-    Txx = oneOverWi * (Cxx - 1.)
-    Tyy = oneOverWi * (Cyy - 1.)
+    Txx = oneOverWi * Cxx 
+    Txx[N*M] -= 1.0
+    Tyy = oneOverWi * Cyy 
+    Tyy[N*M] -= 1.0
     Txy = oneOverWi * Cxy
 
     U         = + dot(MDY, PSI)
@@ -145,11 +154,11 @@ def solve_eq(xVec):
     residualsVec = zeros((4*vecLen + 1), dtype='complex')
 
     #####psi
-    residualsVec[0:vecLen] = -  Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
-                             + Re*dot(MMU, dot(MDX, LAPLACPSI)) \
-                             + Re*dot(MMV, dot(MDY, LAPLACPSI))  \
-                             - beta*dot(BIHARM, PSI) \
-                             - (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
+    residualsVec[0:vecLen] = +  Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
+                             - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
+                             - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
+                             + beta*dot(BIHARM, PSI) \
+                             + (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
                                           - dot(MDYY, Txy))
 
     #####xx
@@ -207,18 +216,18 @@ def solve_eq(xVec):
 
     ###### psi
     ##psi
-    jacobian[0:vecLen, 0:vecLen] = - Nu*Re*dot(MDX, LAPLAC) \
-                                   + Re*dot(dot(MMU, MDX), LAPLAC) \
-                                   + Re*dot(dot(MMV, MDY), LAPLAC) \
-                                   - Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
-                                   + Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
-                                   - beta*BIHARM 
+    jacobian[0:vecLen, 0:vecLen] = + Nu*Re*dot(MDX, LAPLAC) \
+                                   - Re*dot(dot(MMU, MDX), LAPLAC) \
+                                   - Re*dot(dot(MMV, MDY), LAPLAC) \
+                                   + Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
+                                   - Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
+                                   + beta*BIHARM 
     ##cxx
-    jacobian[0:vecLen, vecLen:2*vecLen] = + (1.-beta)*oneOverWi*MDXY
+    jacobian[0:vecLen, vecLen:2*vecLen] = - (1.-beta)*oneOverWi*MDXY
     ##cyy
-    jacobian[0:vecLen, 2*vecLen:3*vecLen] = - (1.-beta)*oneOverWi*MDXY
+    jacobian[0:vecLen, 2*vecLen:3*vecLen] = + (1.-beta)*oneOverWi*MDXY
     ##cxy
-    jacobian[0:vecLen, 3*vecLen:4*vecLen] = + (1.-beta)*oneOverWi*(MDYY - MDXX)
+    jacobian[0:vecLen, 3*vecLen:4*vecLen] = - (1.-beta)*oneOverWi*(MDYY - MDXX)
     ##Nu - vector not a product matrix
     jacobian[0:vecLen, 4*vecLen] = Re*dot(MDX, LAPLACPSI)
 
@@ -337,11 +346,41 @@ def solve_eq(xVec):
 
     return(jacobian, residualsVec)
 
+
+def symmetrise(vec):
+    """symmetrise each vector to manually impose real space condition""" 
+
+    tmp = zeros(vecLen, dtype='complex')
+    for n in range(N):
+        tmp[n*M:(n+1)*M] = 0.5*conj(vec[vecLen-(n+1)*M:vecLen-n*M])\
+                         + 0.5*vec[n*M:(n+1)*M]
+        tmp[vecLen-(n+1)*M:vecLen-n*M] = conj(tmp[n*M:(n+1)*M])
+    del n
+    tmp[N*M:(N+1)*M] = real(vec[N*M:(N+1)*M])
+
+    return tmp
+
+def increase_resolution(vec):
+    """increase resolution from Nold, Mold to N, M and return the higher res
+    vector"""
+    highMres = zeros((2*NOld+1)*M, dtype ='complex')
+    for n in range(2*NOld+1):
+        highMres[n*M:n*M + MOld] = vec[n*MOld:(n+1)*MOld]
+    del n
+    fullres = zeros(vecLen, dtype='complex')
+    fullres[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = highMres[0:M*(2*NOld+1)]
+    return fullres
+
+def mk_cheb_int():
+    integrator = zeros(M, dtype='d')
+    for m in range(0,M,2):
+        integrator[m] = (1 + cos(m*pi)) / (1-m*m)
+    del m
+    return integrator
+    
+
 #MAIN
 
-outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(N=N, M=M,
-                                                                     kx=kx, Re=Re, 
-                                                                     b=beta, Wi=Wi)
 
 # setup the initial conditions 
 
@@ -369,26 +408,8 @@ oneOverC[0] = 1. / 2.
 CFunc = ones(M)
 CFunc[0] = 2.
 
-#PSI = random.random(vecLen)/10.0
-Cxx = random.random(vecLen)/10000000.0
-Cyy = random.random(vecLen)/10000000.0
-Cxy = random.random(vecLen)/10000000.0
+almostZero = zeros(M, dtype='D') + 1e-14
 
-PSI = zeros(vecLen, dtype='complex')
-PSI[N*M+1] =  3.0/8.0
-PSI[N*M+2] = -1.0
-PSI[N*M+3] = -1.0/8.0
-#Cxx = zeros(vecLen, dtype='complex')
-#Cyy = zeros(vecLen, dtype='complex')
-#Cxy = zeros(vecLen, dtype='complex')
-Nu  = 0
-
-xVec = zeros((4*vecLen + 1), dtype='complex')
-xVec[0:vecLen]          = PSI
-xVec[vecLen:2*vecLen]   = Cxx
-xVec[2*vecLen:3*vecLen] = Cyy
-xVec[3*vecLen:4*vecLen] = Cxy
-xVec[4*vecLen]          = Nu 
 
 # Useful operators 
 
@@ -400,6 +421,8 @@ MDXX = dot(MDX, MDX)
 MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
 BIHARM = dot(LAPLAC, LAPLAC)
+
+INTY = mk_cheb_int()
 
 #Identity
 II = eye(vecLen, vecLen, dtype='complex')
@@ -417,12 +440,50 @@ for j in range(M):
     DERIVBOT[j] = dot(BBOT, singleDY[:,j])
 del j
 
+#PSI = random.random(vecLen)/10.0
+
+PSI = zeros(vecLen, dtype='complex')
+#PSI[N*M+1] =  3.0/8.0
+#PSI[N*M+2] = -1.0
+#PSI[N*M+3] = -1.0/8.0
+#inFp = open('pf-N2-M40-kx1.313-Re3000.0.pickle', 'r')
+#PSI, Nu = pickle.load(inFp)
+
+#Nu  = 0.35
+#Cxx = zeros(vecLen, dtype='complex')
+#Cxx = 2*dot(MDX, dot(MDY, PSI))
+#Cxx[N*M] += 1.0
+#Cyy = zeros(vecLen, dtype='complex')
+#Cyy = - 2*dot(MDY, dot(MDX, PSI))
+#Cyy[N*M] += 1.0
+#Cxy = zeros(vecLen, dtype='complex')
+#Cxy = dot(MDYY, PSI) - dot(MDX, dot(MDX, PSI))
+
+PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
+
+PSI = increase_resolution(PSIOld)
+Cxx = increase_resolution(CxxOld)
+Cyy = increase_resolution(CyyOld)
+Cxy = increase_resolution(CxyOld)
+
+#PSI[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = PSItmp[0:M*(2*NOld+1)]
+#Cxx[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = Cxxtmp[0:M*(2*NOld+1)]
+#Cyy[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = Cyytmp[0:M*(2*NOld+1)]
+#Cxy[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = Cxytmp[0:M*(2*NOld+1)]
+
+xVec = zeros((4*vecLen + 1), dtype='complex')
+xVec[0:vecLen]          = PSI
+xVec[vecLen:2*vecLen]   = Cxx
+xVec[2*vecLen:3*vecLen] = Cyy
+xVec[3*vecLen:4*vecLen] = Cxy
+xVec[4*vecLen]          = Nu 
+
 # Set only the imaginary part at a point to zero to constrain nu. I will choose
 # y = 0.5
 SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
 for m in range(M):
-    SPEEDCONDITION[3*vecLen + (N-1)*M + m] = cos(m*arccos(0.5)) 
-    SPEEDCONDITION[3*vecLen + (N+1)*M + m] = -cos(m*arccos(0.5))
+    SPEEDCONDITION[3*vecLen + (N-1)*M + m] = cos(m*arccos(y_star)) 
+    SPEEDCONDITION[3*vecLen + (N+1)*M + m] = -cos(m*arccos(y_star))
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"
@@ -433,7 +494,12 @@ while True:
     xVec = xVec + dx
     L2norm = linalg.norm(f_x0,2)
     print "\t {L2norm}".format(L2norm=L2norm)
-    if (L2norm < NRdelta): break
+    if (L2norm < NRdelta): 
+        break
+    xVec[0:vecLen] = symmetrise(xVec[0:vecLen])
+    xVec[vecLen:2*vecLen] = symmetrise(xVec[vecLen:2*vecLen])
+    xVec[2*vecLen:3*vecLen] = symmetrise(xVec[2*vecLen:3*vecLen])
+    xVec[3*vecLen:4*vecLen] = symmetrise(xVec[3*vecLen:4*vecLen])
 
 PSI = xVec[0:vecLen] 
 Cxx = xVec[1*vecLen:2*vecLen] 
@@ -442,5 +508,15 @@ Cxy = xVec[3*vecLen:4*vecLen]
 Nu  = xVec[4*vecLen]
 print "------------------------------------\n"
 print " Nu = ", Nu
+U = dot(MDY, PSI)
+V = -dot(MDX, PSI)
+MMU = prod_mat(U)
+MMV = prod_mat(V)
+U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
+assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
+KE0 = 0.5*real(dot(INTY, U0sq))
+print 'KE0 = ', KE0
+print "norm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
 
-save_pickle((PSI,Cxx,Cyy,Cxy,Nu), outFileName)
+if KE0 > 1e-4:
+    pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
