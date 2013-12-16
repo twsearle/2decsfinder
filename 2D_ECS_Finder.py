@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sun 15 Dec 13:28:02 2013
+#   Last modified: Mon 16 Dec 11:17:08 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -17,19 +17,19 @@ import cPickle as pickle
 
 #SETTINGS----------------------------------------
 
-N = 2              # Number of Fourier modes
+N = 6              # Number of Fourier modes
 M = 40             # Number of Chebychevs (>4)
-Wi = 0.00001           # The Weissenberg number
+Wi = 1.e-5           # The Weissenberg number
 Re = 3000.0           # The Reynold's number
-beta = 0.1
+beta = 1.0
 kx  = 1.313
 y_star = 0.5
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
 consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
-NOld = N  
-MOld = M #- 10
+NOld = 2# N #-2 
+MOld = 40#M #- 10
 kxOld = kx
 ReOld = Re
 bOld = beta 

@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Thu 12 Dec 09:47:19 2013
+#   Last modified: Fri 13 Dec 2013 17:05:04 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ kxOld = kx
 baseFileName = "-N{N}-M{M}-Re{Re}-kx{kx}".format(N=N, M=M, kx=kx, Re=Re)
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
                                                        Re=ReOld)
-outTraceFileName = "KE-trace-N{N}-M{M}-kx{kx}".format(N=N, M=M, kx=kx)
+outTraceFileName = "KE-trace-N{N}-M{M}-kx{kx}.dat".format(N=N, M=M, kx=kx)
 
 ReList = flipud(r_[0:Re+1:1])
 

@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Wed 11 Dec 23:57:26 2013
+#   Last modified: Mon 16 Dec 2013 14:25:43 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -12,7 +12,6 @@ Newton-Raphson and the Oldroyd-B model."""
 from scipy import *
 from scipy import linalg
 import ConfigParser
-import matplotlib.pyplot as plt
 import cPickle as pickle
 import TobySpectralMethods as tsm
 
@@ -33,11 +32,13 @@ fp.close()
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 y_star  = 0.5
 
+NOld = 5
+MOld = 40
 ReOld = Re #+ 10
-kxOld = kx - 0.01
+kxOld = kx #- 0.0001
 baseFileName = "-N{N}-M{M}-Re{Re}-kx{kx}".format(N=N, M=M, kx=kx, Re=Re)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kx, Re=Re)
-inFileName= "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
+inFileName= "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=NOld, M=MOld, kx=kxOld,
                                                        Re=ReOld)
 tsm.initTSM(N, M, kx)
 #------------------------------------------------
@@ -187,6 +188,24 @@ def symmetrise(vec):
 
     return tmp
 
+def increase_resolution(vec):
+    """increase resolution from Nold, Mold to N, M and return the higher res
+    vector"""
+    highMres = zeros((2*NOld+1)*M, dtype ='complex')
+    for n in range(2*NOld+1):
+        highMres[n*M:n*M + MOld] = vec[n*MOld:(n+1)*MOld]
+    del n
+    fullres = zeros(vecLen, dtype='complex')
+    fullres[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = highMres[0:M*(2*NOld+1)]
+    return fullres
+
+def mk_cheb_int():
+    integrator = zeros(M, dtype='d')
+    for m in range(0,M,2):
+        integrator[m] = (1 + cos(m*pi)) / (1-m*m)
+    del m
+    return integrator
+
 #MAIN
 
 
@@ -227,8 +246,9 @@ PSI = zeros(vecLen, dtype='complex')
 
 # Read in profile from previous step
 
-PSI, Nu = pickle.load(open(inFileName, 'r'))
-#PSI[3*M:8*M], Nu = pickle.load(open(inFileName, 'r'))
+PSIOld, Nu = pickle.load(open(inFileName, 'r'))
+PSI = increase_resolution(PSIOld)
+
 print inFileName
 print "Nu = ", Nu
 
@@ -261,6 +281,8 @@ MDXX = dot(MDX, MDX)
 MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
 BIHARM = dot(LAPLAC, LAPLAC)
+
+INTY = mk_cheb_int()
 
 #Identity
 II = eye(vecLen, vecLen, dtype='complex')
@@ -307,7 +329,25 @@ while True:
         if any(greater(PSIans[(N-1)*M: N*M], almostZero)):
             print 'Solution Found!'
             pickle.dump((PSIans,Nuans), open(outFileName, 'w'))
+            realityArr = []
+            for n in range(N):
+                cond = allclose(PSI[n*M:(n+1)*M],conj(PSI[(2*N-n)*M:(2*N+1-n)*M]))
+                realityArr.append(cond)
+            del n
+            if all(realityArr):
+                print 'Solution is real'
+            else:
+                print 'Solution is complex!!!!'
+            U = dot(MDY, PSI)
+            V = -dot(MDX, PSI)
+            MMU = tsm.prod_mat(U)
+            MMV = tsm.prod_mat(V)
+            U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
+            assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
+            KE0 = 0.5*real(dot(INTY, U0sq))
+            print 'KE0 = ', KE0
         break
+
     xVec[:(2*N+1)*M] = symmetrise(xVec[:(2*N+1)*M])
     
     if (L2norm > 1e20): break
