@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Fri 13 Dec 2013 17:05:04 GMT
+#   Last modified: Wed 18 Dec 16:58:29 2013
 #
 #-----------------------------------------------------------------------------
 
@@ -14,6 +14,7 @@ from scipy import linalg
 import ConfigParser
 import cPickle as pickle
 import TobySpectralMethods as tsm
+import sys
 
 #SETTINGS----------------------------------------
 
@@ -23,9 +24,10 @@ config.readfp(fp)
 N = config.getint('General', 'N')
 M = config.getint('General', 'M')
 Re = config.getfloat('General', 'Re')
-kx = config.getfloat('General', 'kx')
 amp = config.getfloat('Newton-Raphson', 'amp')
 relax = config.getfloat('Newton-Raphson', 'relax')
+
+kx = float(sys.argv[1])
 
 fp.close()
 
@@ -39,7 +41,7 @@ inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=N, M=M, kx=kxOld,
                                                        Re=ReOld)
 outTraceFileName = "KE-trace-N{N}-M{M}-kx{kx}.dat".format(N=N, M=M, kx=kx)
 
-ReList = flipud(r_[0:Re+1:1])
+ReList = flipud(r_[0:Re+0.5:0.5])
 
 tsm.initTSM(N, M, kx)
 #------------------------------------------------
@@ -299,8 +301,10 @@ for Re in ReList:
     print "------------------------------------"
     print "L2norm:"
     L2norm = 1.0
+    counter = 0
 
     while (L2norm > NRdelta):
+        counter +=1
         # Iterate until you find a solution
         (J_x0, f_x0) = solve_eq(xVec)
         dx = linalg.solve(J_x0, -f_x0)
@@ -310,9 +314,14 @@ for Re in ReList:
         PSIans = xVec[0:vecLen] 
         Nuans  = xVec[vecLen]
         
-        if (L2norm > 1e20):
+        if (L2norm > 1e20) :
             # If convergence fails once, end the program
             print "Lost stability"
+            outKEfp.close()
+            exit(1)
+
+        if (counter > 30) :
+            print "Not going to converge"
             outKEfp.close()
             exit(1)
 
