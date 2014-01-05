@@ -33,12 +33,12 @@ fp.close()
 numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 
-amp = 0.1
+amp = 0.2
 
 kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': totTime}
 baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
 outFileName  = "psi{0}".format(baseFileName)
-outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
+outFileNameTrace = "KE1-trace{0}.dat".format(baseFileName[:-7])
 outFileNameTime = "series-PSI{0}".format(baseFileName)
 
 
@@ -117,6 +117,13 @@ def prod_mat(velA):
 
     return MM
 
+def mk_cheb_int():
+    integrator = zeros(M, dtype='d')
+    for m in range(0,M,2):
+        integrator[m] = (1 + cos(m*pi)) / (1-m*m)
+    del m
+    return integrator
+
 # -----------------------------------------------------------------------------
 # MAIN
 # -----------------------------------------------------------------------------
@@ -149,7 +156,7 @@ assert oneOverRe != infty, "Can't set Reynold's to zero!"
 
 # The initial stream-function
 PSI = zeros(vecLen, dtype='complex')
-# Perturb first 3 Chebyshevs
+# Perturb first 3 Chebyshevs of the 1st Fourier mode
 PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
 PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
@@ -175,6 +182,8 @@ MDYLAPLAC = dot(MDY, LAPLAC)
 SMDY = mk_single_diffy()
 SMDYY = dot(SMDY, SMDY)
 SMDYYY = dot(SMDY, SMDYY)
+
+INTY = mk_cheb_int()
 
 # Identity
 SII = eye(M, M, dtype='complex')
@@ -260,8 +269,10 @@ Beginning Time Iteration:
 for tindx, currTime in enumerate(timesList):
     
     # Make the vector for the RHS of the equations
-    MMU =   prod_mat(dot(MDY, PSI))
-    MMV = - prod_mat(dot(MDX, PSI))
+    U =   dot(MDY, PSI)
+    V = - dot(MDX, PSI)
+    MMU = prod_mat(U)
+    MMV = prod_mat(V)
     
     RHSVec = dt*0.5*oneOverRe*dot(BIHARM, PSI) \
             + dot(LAPLAC, PSI) \
@@ -305,13 +316,18 @@ for tindx, currTime in enumerate(timesList):
         PSI[n*M:(n+1)*M] = conj(PSI[(2*N-n)*M:(2*N-n+1)*M])
  
 
-    L2Norm = linalg.norm(PSI, 2)
+    # KE0 is from the previous timestep rather than the current one.
+
+    Usq = dot(MMU, U) + dot(MMV, V)
+    KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
+    Usq1 = Usq[(N-1)*M:N*M]*exp(1.j*kx) + Usq[(N+1)*M:(N+2)*M]*exp(-1.j*kx)
+    KE1 = 0.5*dot(INTY, Usq1)
 
     if not tindx % (numTimeSteps/numFrames):
         pickle.dump(PSI, psiSeriesFp)
-        print "{0:15.8g} \t {1:15.8g}".format(currTime, L2Norm)
+        print "{0:15.8g} {1:15.8g} {2:15.8g}".format(currTime-dt, KE0, KE1)
 
-    traceOutFp.write("{0:15.8g} \t {1:15.8g}\n".format(currTime, L2Norm))
+    traceOutFp.write("{0:15.8g} {1:15.8g} {2:15.8g}\n".format(currTime-dt, KE0, KE1))
 
 traceOutFp.close()
 psiSeriesFp.close()
