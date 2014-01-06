@@ -4,15 +4,15 @@ N = None
 M = None 
 kx = None
 
-def initTSM(outN, outM, outkx):
+def initTSM(N_, M_, kx_):
     global oneOverC
     global CFunc
     global N
     global M
     global kx
-    N = outN
-    M = outM
-    kx = outkx
+    N = N_
+    M = M_
+    kx = kx_
     
     # Set the oneOverC function: 1/2 for m=0, 1 elsewhere:
     oneOverC = ones(M)
@@ -82,13 +82,22 @@ def prod_mat(velA):
     #copy matrix into MM, according to the matrix for spectral space
     # top part first
     for i in range(0, N):
-        MM[i*M:(i+1)*M, :] = column_stack((midMat[:, (N-i)*M:], zeros((M, (N-i)*M))) )
+        MM[i*M:(i+1)*M, :(N+1+i)*M] = midMat[:, (N-i)*M:]
     del i
     # middle
     MM[N*M:(N+1)*M, :] = midMat
-    # bottom 
+    #  bottom - beware! This thing is pretty horribly written. i = 0 is actually
+    #  row index N+1
     for i in range(0, N):
-        MM[(i+N+1)*M:(i+2+N)*M, :] = column_stack((zeros((M, (i+1)*M)), midMat[:, :(2*N-i)*M] ))
+        MM[(i+N+1)*M:(i+2+N)*M, (i+1)*M:] = midMat[:, :(2*N-i)*M]
     del i
 
     return MM
+
+def mk_cheb_int():
+    integrator = zeros(M, dtype='d')
+    for m in range(0,M,2):
+        integrator[m] = 2. / (1.-m*m)
+    del m
+    
+    return integrator
