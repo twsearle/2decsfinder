@@ -142,7 +142,6 @@ print 'Kinetic energy of 1st mode is: ', KE1
 print 'norm of 0th mode is: ', linalg.norm(PSI[N*M:(N+1)*M], 2)
 print 'norm of 1st mode is: ', linalg.norm(PSI[(N-1)*M:N*M] +
                                            PSI[(N+1)*M:(N+2)*M], 2)
-exit(1)
 
 # Read in stream function from file
 #(PSI, Nu) = pickle.load(open(inFileName,'r'))
