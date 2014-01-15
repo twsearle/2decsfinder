@@ -267,10 +267,12 @@ for tindx, currTime in enumerate(timesList):
 
     Usq = dot(MMU, U) + dot(MMV, V)
     KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
-    Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
-    KE1 = 0.5*dot(INTY, Usq1)
+    KE0 = real(KE0)
 
-    dataout = {'t':currTime-dt, 'KE0':KE0, 'KE1':KE1}
+    Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
+    KE1 = linalg.norm(0.5*dot(INTY, Usq1))
+
+    dataout = {'t':float(currTime-dt), 'KE0':float(KE0), 'KE1':float(KE1)}
     
     if not tindx % (numTimeSteps/numFrames):
         pickle.dump(PSI, psiSeriesFp)
