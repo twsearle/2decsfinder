@@ -15,6 +15,7 @@ from scipy import *
 from scipy import linalg
 import cPickle as pickle
 import ConfigParser
+import TobySpectralMethods as tsm
 
 # SETTINGS---------------------------------------------------------------------
 
@@ -33,96 +34,20 @@ fp.close()
 numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 
-amp = 0.2
+amp = 0.015
 
 kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': totTime}
 baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
 outFileName  = "psi{0}".format(baseFileName)
-outFileNameTrace = "KE1-trace{0}.dat".format(baseFileName[:-7])
+outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
 outFileNameTime = "series-PSI{0}".format(baseFileName)
+inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(**kwargs)
 
+tsm.initTSM(N_=N, M_=M, kx_=kx)
 
 # -----------------------------------------------------------------------------
 
 # FUNCTIONS
-def mk_single_diffy():
-    """Makes a matrix to differentiate a single vector of Chebyshev's, 
-    for use in constructing large differentiation matrix for whole system"""
-    # make matrix:
-    mat = zeros((M, M), dtype='d')
-    for m in range(M):
-        for p in range(m+1, M, 2):
-            mat[m,p] = 2*p*oneOverC[m]
-
-    return mat
-
-def mk_diff_y():
-    """Make the matrix to differentiate a velocity vector wrt y."""
-    D = mk_single_diffy()
-    MDY = zeros( (vecLen,  vecLen) )
-     
-    for cheb in range(0,vecLen,M):
-        MDY[cheb:cheb+M, cheb:cheb+M] = D
-    del cheb
-    return MDY
-
-def mk_diff_x():
-    """Make matrix to do fourier differentiation wrt x."""
-    MDX = zeros( (vecLen, vecLen), dtype='complex')
-
-    n = -N
-    for i in range(0, vecLen, M):
-        MDX[i:i+M, i:i+M] = eye(M, M, dtype='complex')*n*kx*1.j
-        n += 1
-    del n, i
-    return MDX
-
-def cheb_prod_mat(velA):
-    """Function to return a matrix for left-multiplying two Chebychev vectors"""
-
-    D = zeros((M, M), dtype='complex')
-
-    for n in range(M):
-        for m in range(-M+1,M):     # Bottom of range is inclusive
-            itr = abs(n-m)
-            if (itr < M):
-                D[n, abs(m)] += 0.5*oneOverC[n]*CFunc[itr]*CFunc[abs(m)]*velA[itr]
-    del m, n, itr
-    return D
-
-def prod_mat(velA):
-    """Function to return a matrix ready for the left dot product with another
-    velocity vector"""
-    MM = zeros((vecLen, vecLen), dtype='complex')
-
-    #First make the middle row
-    midMat = zeros((M, vecLen), dtype='complex')
-    for n in range(2*N+1):       # Fourier Matrix is 2*N+1 cheb matricies
-        yprodmat = cheb_prod_mat(velA[n*M:(n+1)*M])
-        endind = 2*N+1-n
-        midMat[:, (endind-1)*M:endind*M] = yprodmat
-    del n
-
-    #copy matrix into MM, according to the matrix for spectral space
-    # top part first
-    for i in range(0, N):
-        MM[i*M:(i+1)*M, :] = column_stack((midMat[:, (N-i)*M:], zeros((M, (N-i)*M))) )
-    del i
-    # middle
-    MM[N*M:(N+1)*M, :] = midMat
-    # bottom 
-    for i in range(0, N):
-        MM[(i+N+1)*M:(i+2+N)*M, :] = column_stack((zeros((M, (i+1)*M)), midMat[:, :(2*N-i)*M] ))
-    del i
-
-    return MM
-
-def mk_cheb_int():
-    integrator = zeros(M, dtype='d')
-    for m in range(0,M,2):
-        integrator[m] = (1 + cos(m*pi)) / (1-m*m)
-    del m
-    return integrator
 
 # -----------------------------------------------------------------------------
 # MAIN
@@ -144,33 +69,16 @@ NumTimeSteps\t= {NT}
 # SET UP
 
 vecLen = (2*N+1)*M
-# Set the oneOverC function: 1/2 for m=0, 1 elsewhere:
-oneOverC = ones(M)
-oneOverC[0] = 1. / 2.
-# Set up the CFunc function: 2 for m=0, 1 elsewhere:
-CFunc = ones(M)
-CFunc[0] = 2.
 
 oneOverRe = 1. / Re
 assert oneOverRe != infty, "Can't set Reynold's to zero!"
 
-# The initial stream-function
-PSI = zeros(vecLen, dtype='complex')
-# Perturb first 3 Chebyshevs of the 1st Fourier mode
-PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
-PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
-
-PSI[N*M]   += 2.0/3.0
-PSI[N*M+1] += 3.0/4.0
-PSI[N*M+2] += 0.0
-PSI[N*M+3] += -1.0/12.0
-
 # Useful operators 
 
-MDY = mk_diff_y()
+MDY = tsm.mk_diff_y()
 MDYY = dot(MDY,MDY)
 MDYYY = dot(MDY,MDYY)
-MDX = mk_diff_x()
+MDX = tsm.mk_diff_x()
 MDXX = dot(MDX, MDX)
 MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
@@ -179,11 +87,11 @@ MDXLAPLAC = dot(MDX, LAPLAC)
 MDYLAPLAC = dot(MDY, LAPLAC)
 
 # single mode Operators
-SMDY = mk_single_diffy()
+SMDY = tsm.mk_single_diffy()
 SMDYY = dot(SMDY, SMDY)
 SMDYYY = dot(SMDY, SMDYY)
 
-INTY = mk_cheb_int()
+INTY = tsm.mk_cheb_int()
 
 # Identity
 SII = eye(M, M, dtype='complex')
@@ -199,6 +107,46 @@ for j in range(M):
     DERIVTOP[j] = dot(BTOP, SMDY[:,j]) 
     DERIVBOT[j] = dot(BBOT, SMDY[:,j])
 del j
+
+#### The initial stream-function
+PSI = zeros(vecLen, dtype='complex')
+
+PSI[N*M]   += 2.0/3.0
+PSI[N*M+1] += 3.0/4.0
+PSI[N*M+2] += 0.0
+PSI[N*M+3] += -1.0/12.0
+
+# Perturb 3 of 4 of first Chebyshevs of the 1st Fourier mode
+PSI[(N-1)*M] = random.normal(loc=amp, scale=0.001) 
+PSI[(N-1)*M+1] = random.normal(loc=amp, scale=0.001) 
+PSI[(N-1)*M+3] = random.normal(loc=amp, scale=0.001) 
+
+PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
+
+# reduce the base flow KE by a roughly corresponding amount (8pc), with this
+# energy in the perturbation (hopefully). ( 0.96 is about root(0.92) )
+PSI[N*M:(N+1)*M] = 0.9*PSI[N*M:(N+1)*M]
+
+# Check to make sure energy is large enough to get an ECS
+U = dot(MDY, PSI)
+V = - dot(MDX, PSI)
+MMU = tsm.prod_mat(U)
+MMV = tsm.prod_mat(V)
+Usq = dot(MMU, U) + dot(MMV, V)
+Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
+KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
+KE1 = 0.5*dot(INTY, Usq1)
+print 'Kinetic energy of 0th mode is: ', KE0
+print 'Kinetic energy of 1st mode is: ', KE1
+
+print 'norm of 0th mode is: ', linalg.norm(PSI[N*M:(N+1)*M], 2)
+print 'norm of 1st mode is: ', linalg.norm(PSI[(N-1)*M:N*M] +
+                                           PSI[(N+1)*M:(N+2)*M], 2)
+exit(1)
+
+# Read in stream function from file
+#(PSI, Nu) = pickle.load(open(inFileName,'r'))
+
 
 # Form the operators
 PsiOpInvList = []
@@ -271,8 +219,8 @@ for tindx, currTime in enumerate(timesList):
     # Make the vector for the RHS of the equations
     U =   dot(MDY, PSI)
     V = - dot(MDX, PSI)
-    MMU = prod_mat(U)
-    MMV = prod_mat(V)
+    MMU = tsm.prod_mat(U)
+    MMV = tsm.prod_mat(V)
     
     RHSVec = dt*0.5*oneOverRe*dot(BIHARM, PSI) \
             + dot(LAPLAC, PSI) \
@@ -320,14 +268,16 @@ for tindx, currTime in enumerate(timesList):
 
     Usq = dot(MMU, U) + dot(MMV, V)
     KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
-    Usq1 = Usq[(N-1)*M:N*M]*exp(1.j*kx) + Usq[(N+1)*M:(N+2)*M]*exp(-1.j*kx)
+    Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
     KE1 = 0.5*dot(INTY, Usq1)
 
+    dataout = {'t':currTime-dt, 'KE0':KE0, 'KE1':KE1}
+    
     if not tindx % (numTimeSteps/numFrames):
         pickle.dump(PSI, psiSeriesFp)
-        print "{0:15.8g} {1:15.8g} {2:15.8g}".format(currTime-dt, KE0, KE1)
+        print "{t:15.8g} {KE0:15.8g} {KE1:15.8g}".format(**dataout)
 
-    traceOutFp.write("{0:15.8g} {1:15.8g} {2:15.8g}\n".format(currTime-dt, KE0, KE1))
+    traceOutFp.write("{t:15.8g} {KE0:15.8g} {KE1:15.8g}\n".format(**dataout))
 
 traceOutFp.close()
 psiSeriesFp.close()
