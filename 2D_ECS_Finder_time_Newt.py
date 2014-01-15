@@ -11,6 +11,8 @@ that we have a exact solution to the Navier-Stokes equations.
 """
 
 # MODULES
+import sys
+sys.path.append('~/Documents/Project_3/REPO')
 from scipy import *
 from scipy import linalg
 import cPickle as pickle
