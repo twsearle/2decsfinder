@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified:
+#   Last modified: Fri 24 Jan 18:18:15 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -37,11 +37,15 @@ numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 assert Wi != 0.0, "cannot have Wi = 0!"
 
+NOld = 5
+MOld = 40
 kwargs = {'N': N, 'M': M, 'Re': Re,'Wi': Wi, 'beta': beta, 'kx': kx,'time': totTime}
 baseFileName  = "-N{N}-M{M}-Re{Re}-Wi{Wi}-b{beta}-kx{kx}-t{time}.pickle".format(**kwargs)
 outFileName  = "pf{0}".format(baseFileName)
 outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
 outFileNameTime = "series-pf{0}".format(baseFileName)
+inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=NOld, M=MOld, 
+                                                        kx=kx, Re=Re)
 
 
 # -----------------------------------------------------------------------------
@@ -119,6 +123,17 @@ def prod_mat(velA):
 
     return MM
 
+def increase_resolution(vec):
+    """increase resolution from Nold, Mold to N, M and return the higher res
+    vector"""
+    highMres = zeros((2*NOld+1)*M, dtype ='complex')
+    for n in range(2*NOld+1):
+        highMres[n*M:n*M + MOld] = vec[n*MOld:(n+1)*MOld]
+    del n
+    fullres = zeros(vecLen, dtype='complex')
+    fullres[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = highMres[0:M*(2*NOld+1)]
+    return fullres
+
 def mk_cheb_int():
     integrator = zeros(M, dtype='d')
     for m in range(0,M,2):
@@ -130,18 +145,21 @@ def mk_cheb_int():
 # MAIN
 # -----------------------------------------------------------------------------
 
+formKW = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi, 'dt':dt, 'NT':numTimeSteps, 't':totTime}
 print"=====================================\n"
 print "Settings:"
 print """------------------------------------
 N \t\t= {N}
 M \t\t= {M}              
-Re \t\t= {Re}         
+Re \t\t= {Re}
+beta \t\t={b}
+Wi \t\t= {Wi}
 kx \t\t= {kx}
 dt\t\t= {dt}
 totTime\t\t= {t}
 NumTimeSteps\t= {NT}
 ------------------------------------
-        """.format(N=N, M=M, kx=kx, Re=Re, dt=dt, NT=numTimeSteps, t=totTime)
+        """.format(**formKW)
 
 # SET UP
 
@@ -153,8 +171,7 @@ oneOverC[0] = 1. / 2.
 CFunc = ones(M)
 CFunc[0] = 2.
 
-oneOverRe = 1. / Re
-assert oneOverRe != infty, "Can't set Reynold's to zero!"
+assert Re != 0, "Setting Reynold's number to zero is dangerous!"
 oneOverWi = 1. / Wi 
 
 
@@ -171,6 +188,10 @@ BIHARM = dot(LAPLAC, LAPLAC)
 MDXLAPLAC = dot(MDX, LAPLAC)
 MDYLAPLAC = dot(MDY, LAPLAC)
 
+II = eye((2*N+1)*M, (2*N+1)*M, dtype='complex')
+constOneVec = zeros((2*N+1)*M, dtype='complex')
+constOneVec[N*M] = 1.
+
 # single mode Operators
 SMDY = mk_single_diffy()
 SMDYY = dot(SMDY, SMDY)
@@ -180,6 +201,7 @@ INTY = mk_cheb_int()
 
 # Identity
 SII = eye(M, M, dtype='complex')
+
 
 # Boundary arrays
 BTOP = ones(M)
@@ -197,13 +219,17 @@ del j
 
 PSI = zeros(vecLen, dtype='complex')
 # Perturb first 3 Chebyshevs
-PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
-PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
+#PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
+#PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
-PSI[N*M]   += 2.0/3.0
-PSI[N*M+1] += 3.0/4.0
-PSI[N*M+2] += 0.0
-PSI[N*M+3] += -1.0/12.0
+#PSI[N*M]   += 2.0/3.0
+#PSI[N*M+1] += 3.0/4.0
+#PSI[N*M+2] += 0.0
+#PSI[N*M+3] += -1.0/12.0
+
+PSIOld, Nu = pickle.load(open(inFileName, 'r'))
+
+PSI = increase_resolution(PSIOld)
 
 # Initial Stress is Newtonian
 
@@ -225,7 +251,7 @@ for i in range(N):
     SLAPLAC = -n*n*kx*kx*SII + SMDYY
 
     PSIOP[0:M, 0:M] = 0
-    PSIOP[0:M, M:2*M] = SII - 0.5*beta*oneOverRe*dt*SLAPLAC
+    PSIOP[0:M, M:2*M] = Re*SII - 0.5*beta*dt*SLAPLAC
 
     PSIOP[M:2*M, 0:M] = SLAPLAC
     PSIOP[M:2*M, M:2*M] = -SII
@@ -249,7 +275,7 @@ del PSIOP
 
 # zeroth mode
 Psi0thOp = zeros((M,M), dtype='complex')
-Psi0thOp = SMDY - 0.5*dt*beta*oneOverRe*SMDYYY + 0j
+Psi0thOp = Re*SMDY - 0.5*dt*beta*SMDYYY + 0j
 
 # Apply BCs
 
@@ -295,21 +321,28 @@ for tindx, currTime in enumerate(timesList):
     MMV = prod_mat(V)
 
     # PSI
-    RHSVec = dot(LAPLAC, PSIOld) \
-            + dt*0.5*beta*oneOverRe*dot(BIHARM, PSIOld) \
-            - dt*dot(MMU, dot(MDXLAPLAC, PSIOld)) \
-            - dt*dot(MMV, dot(MDYLAPLAC, PSIOld)) \
-            + (1.-beta)*oneOverWi*oneOverRe*(dot(MDXX, Cxy) \
+    RHSVec = Re*dot(LAPLAC, PSIOld) \
+            + dt*0.5*beta*dot(BIHARM, PSIOld) \
+            - dt*Re*dot(MMU, dot(MDXLAPLAC, PSIOld)) \
+            - dt*Re*dot(MMV, dot(MDYLAPLAC, PSIOld))\
+            + (1.-beta)*oneOverWi*(dot(MDXX, Cxy) \
                     + dot(MDXY,(Cyy - Cxx)) \
                     - dot(MDYY, Cxy) )
 
     # Zeroth mode
     RHSVec[N*M:(N+1)*M] = 0
-    RHSVec[N*M:(N+1)*M] = + dot(MDY, PSIOld)[N*M:(N+1)*M] \
-              + dt*0.5*oneOverRe*beta*dot(MDYYY, PSIOld)[N*M:(N+1)*M] \
-              - dt*dot(dot(MMV, MDYY), PSIOld)[N*M:(N+1)*M] \
-              + dt*(1.-beta)*oneOverRe*oneOverWi*dot(MDY, Cxy)[N*M:(N+1)*M]
-    RHSVec[N*M] += dt*2*oneOverRe
+    RHSVec[N*M:(N+1)*M] = + Re*dot(MDY, PSIOld)[N*M:(N+1)*M] \
+              + dt*0.5*beta*dot(MDYYY, PSIOld)[N*M:(N+1)*M] \
+              - dt*Re*dot(dot(MMV, MDYY), PSIOld)[N*M:(N+1)*M] \
+              + dt*(1.-beta)*oneOverWi*dot(MDY, Cxy)[N*M:(N+1)*M]
+    RHSVec[N*M] += dt*2
+    
+    # This vector was exploding, was trying to test for the cause. 
+    #print 'RHSvec0 ', linalg.norm(RHSVec[N*M:(N+1)*M])
+    #print 'term1 ', linalg.norm(+ Re*dot(MDY, PSIOld)[N*M:(N+1)*M], 2)
+    #print 'term2 ', linalg.norm(+ dt*0.5*beta*dot(MDYYY, PSIOld)[N*M:(N+1)*M], 2)
+    #print 'term3 ', linalg.norm(- dt*Re*dot(dot(MMV, MDYY), PSIOld)[N*M:(N+1)*M], 2)
+    #print 'term4 ', linalg.norm(+ dt*(1.-beta)*oneOverWi*dot(MDY, Cxy)[N*M:(N+1)*M], 2)
 
     # Apply BC's
     for n in range (N+1): 
@@ -340,7 +373,7 @@ for tindx, currTime in enumerate(timesList):
     for n in range(N+1, 2*N+1):
         PSI[n*M:(n+1)*M] = conj(PSI[(2*N-n)*M:(2*N-n+1)*M])
  
-    # Stresses don't require any operator inversion to step, just standard Euler
+    # Use Backward (implicit?) Euler method to step the stresses
 
     # Calculate polymeric stress components
     TxxOld = oneOverWi*CxxOld
@@ -355,16 +388,42 @@ for tindx, currTime in enumerate(timesList):
     VGRAD = dot(MMU, MDX) + dot(MMV, MDY)
 
     # CXX
-    Cxx = CxxOld + 2*dt*dot(MMCXX, dot(MDX, U)) + 2*dt*dot(MMCXY, dot(MDX, V))\
-         - dt*dot(VGRAD, CxxOld) - dt*TxxOld 
+    #Cxx = CxxOld + 2*dt*dot(MMCXX, dot(MDX, U)) + 2*dt*dot(MMCXY, dot(MDX, V))\
+    #     - dt*dot(VGRAD, CxxOld) - dt*TxxOld 
+
+    # Cxx via backwards Euler
+    AAA = 2*dot(MMCXY, dot(MDX, V)) + oneOverWi*constOneVec
+    MMM = VGRAD + prod_mat(2*dot(MDX, U)) - oneOverWi*II
+    CxxOp = II - dt*MMM
+    Cxx = linalg.solve(CxxOp, CxxOld + AAA*dt)
 
     # CYY
-    Cyy = CyyOld + 2*dt*dot(MMCXY, dot(MDY, U)) + 2*dt*dot(MMCYY, dot(MDY, V))\
-         - dt*dot(VGRAD, CyyOld) - dt*TyyOld
+    #Cyy = CyyOld + 2*dt*dot(MMCXY, dot(MDY, U)) + 2*dt*dot(MMCYY, dot(MDY, V))\
+    #     - dt*dot(VGRAD, CyyOld) - dt*TyyOld
+
+    # Cyy via backwards Euler
+    AAA = 2*dot(MMCXY, dot(MDY, U)) + oneOverWi*constOneVec
+    MMM = VGRAD + 2*prod_mat(dot(MDY, V)) - oneOverWi*II
+    CyyOp = II - dt*MMM
+    Cyy = linalg.solve(CyyOp, CyyOld + AAA*dt)
+
 
     # CXY
-    Cxy = CxyOld + dt*dot(MMCXX, dot(MDY, U)) + dt*dot(MMCYY, dot(MDX, V))\
-         - dt*dot(VGRAD, CxyOld) - dt*TxyOld
+    #Cxy = CxyOld + dt*dot(MMCXX, dot(MDY, U)) + dt*dot(MMCYY, dot(MDX, V))\
+    #     - dt*dot(VGRAD, CxyOld) - dt*TxyOld
+
+    # Cxy via backwards Euler
+    AAA = dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))
+    MMM = VGRAD - oneOverWi*II
+    CxyOp = II - dt*MMM
+    Cxy = linalg.solve(CxyOp, CxyOld + AAA*dt)
+
+    #print linalg.norm(CxxOld - Cxx)#, linalg.norm(CxxOld -CxxBack)
+    #print linalg.norm(CyyOld - Cyy)#, linalg.norm(CyyOld -CyyBack)
+    #print linalg.norm(CxyOld - Cxy)#, linalg.norm(CxyOld -CxyBack)
+    #print linalg.norm(PSIOld - PSI)
+    #exit(1)
+    
 
     # KE outputted is always that of the previous step
     Usq = dot(MMU,U) + dot(MMV,V)
@@ -374,9 +433,9 @@ for tindx, currTime in enumerate(timesList):
 
     if not tindx % (numTimeSteps/numFrames):
         pickle.dump(PSI, psiSeriesFp)
-        print "{0:15.8g} {1:15.8g} {2:15.8g}".format(currTime, KE0, KE1)
+        print "{0:15.8g} {1:15.8g} {2:15.8g}".format(currTime-dt, KE0, KE1)
 
-    traceOutFp.write("{0:15.8g} {1:15.8g} {2:15.8g}\n".format(currTime, KE0, KE1))
+    traceOutFp.write("{0:15.8g} {1:15.8g} {2:15.8g}\n".format(currTime-dt, KE0, KE1))
 
 traceOutFp.close()
 psiSeriesFp.close()
