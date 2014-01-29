@@ -1,14 +1,17 @@
 # ------------------------------------------------------------------------------
 #   Chebyshev/Fourier to Real space transformation code   
 #
-#   Last modified: Thu  5 Dec 14:00:17 2013
+#   Last modified: Wed 29 Jan 21:43:20 2014
 #
 # ------------------------------------------------------------------------------
 
 # MODULES
 from scipy import *
+from scipy import linalg
 import cPickle as pickle
 import ConfigParser
+import RStrans
+import numpy as np
 
 # SETTINGS----------------------------------------------------------------------
 
@@ -43,19 +46,29 @@ outFileName = "RS-series-PSI{0}".format(baseFileName)
 def Fourier_cheb_transform(vec, x_points, y_points) :
     """ calculate the Fourier chebychev transform for the 2D coherent state
     finder"""
-    rVec = zeros((numXs, numYs),dtype='complex')
+    rVec = zeros((numYs, numXs),dtype='complex')
     for xIndx in range(numXs):
         for yIndx in range(numYs):
             for n in range(2*N+1):
                 for m in range(M):
                     x = x_points[xIndx]
                     y = y_points[yIndx]
-                    term = vec[n*M + m] * exp(1.j*(n-N)*kx*x) * cos(m*arccos(y))
+                    term = vec[n*M + m] * exp(1.j*(n-N)*kx*x) * cos(m*arccos(y))  
                     rVec[yIndx, xIndx] += term
     del x,y,n,m
 
     return real(rVec)
 
+def faster_FC_transform(vecin) :
+    vecout = np.zeros(numXs*numYs, dtype='D')
+
+    RStrans.rstransform(PsiSeries[i], vecout, N, M, numXs, numYs, kx)
+
+    # Reshape back to (xindx, yindx) then transpose to (yindx, xindx) (because)
+    vecout = reshape(vecout, (numXs, numYs)).T
+
+    return vecout
+    
 # MAIN
 
 # Read in the profile series
@@ -75,7 +88,7 @@ inFp.close()
 x_points = zeros(numXs,dtype='d') 
 for xIndx in range(numXs):
     #               2.lambda     * fractional position
-    x_points[xIndx] = (4.*pi/kx) * ((1.*xIndx)/numXs)
+    x_points[xIndx] = (4.*pi/kx) * ((1.*xIndx)/(numXs-1))
 del xIndx
 
 y_points = zeros(numYs,dtype='d')
@@ -87,8 +100,12 @@ del yIndx
 
 outFp = open(outFileName, 'w')
 for i in range(len(PsiSeries)):
-    # pickle the result
-    pickle.dump(Fourier_cheb_transform(PsiSeries[i], x_points, y_points), outFp)
+    
+    #tmparr = Fourier_cheb_transform(PsiSeries[i], x_points, y_points)
+    tmparr = faster_FC_transform(PsiSeries[i])
+
+    #print allclose(tmparr, tmparr2, atol=1e-4)
+    pickle.dump(real(tmparr), outFp)
 del i
 outFp.close()
 
