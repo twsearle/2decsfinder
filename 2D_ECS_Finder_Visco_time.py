@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Fri 24 Jan 18:18:15 2014
+#   Last modified: Wed  5 Feb 15:29:21 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -37,8 +37,8 @@ numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 assert Wi != 0.0, "cannot have Wi = 0!"
 
-NOld = 5
-MOld = 40
+NOld = N 
+MOld = M
 kwargs = {'N': N, 'M': M, 'Re': Re,'Wi': Wi, 'beta': beta, 'kx': kx,'time': totTime}
 baseFileName  = "-N{N}-M{M}-Re{Re}-Wi{Wi}-b{beta}-kx{kx}-t{time}.pickle".format(**kwargs)
 outFileName  = "pf{0}".format(baseFileName)
@@ -134,12 +134,162 @@ def increase_resolution(vec):
     fullres[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = highMres[0:M*(2*NOld+1)]
     return fullres
 
+def decrease_resolution(vec):
+    """ 
+    decrease both the N and M resolutions
+    """
+
+    lowMvec = zeros((2*NOld+1)*M, dtype='complex')
+    for n in range(2*NOld+1):
+        lowMvec[n*M:(n+1)*M] = vec[n*MOld:n*MOld + M]
+    del n
+
+    lowNMvec = zeros((2*N+1)*M, dtype='D')
+    lowNMvec = lowMvec[(NOld-N)*M:(NOld-N)*M + (2*N+1)*M]
+
+    return lowNMvec
+
 def mk_cheb_int():
     integrator = zeros(M, dtype='d')
     for m in range(0,M,2):
         integrator[m] = (1 + cos(m*pi)) / (1-m*m)
     del m
     return integrator
+
+def eplct_euler_step(CxxOld, CyyOld, CxyOld, dt):
+    
+    # Calculate polymeric stress components
+    TxxOld = oneOverWi*CxxOld
+    TxxOld[N*M] += -oneOverWi
+    TyyOld = oneOverWi*CyyOld
+    TyyOld[N*M] += -oneOverWi
+    TxyOld = oneOverWi*CxyOld
+
+    MMCXX = prod_mat(CxxOld)
+    MMCYY = prod_mat(CyyOld)
+    MMCXY = prod_mat(CxyOld)
+
+    # CXX
+    CxxNew = CxxOld + 2*dt*dot(MMCXX, dot(MDX, U)) + 2*dt*dot(MMCXY, dot(MDX, V))\
+         - dt*dot(VGRAD, CxxOld) - dt*TxxOld 
+    
+    # CYY
+    CyyNew = CyyOld + 2*dt*dot(MMCXY, dot(MDY, U)) + 2*dt*dot(MMCYY, dot(MDY, V))\
+         - dt*dot(VGRAD, CyyOld) - dt*TyyOld
+
+    # CXY
+    CxyNew = CxyOld + dt*dot(MMCXX, dot(MDY, U)) + dt*dot(MMCYY, dot(MDX, V))\
+         - dt*dot(VGRAD, CxyOld) - dt*TxyOld
+
+    return (CxxNew, CyyNew, CxyNew)
+
+def iplct_euler_step(CxxOld, CyyOld, CxyOld, dt):
+
+    MMCXX = prod_mat(CxxOld)
+    MMCYY = prod_mat(CyyOld)
+    MMCXY = prod_mat(CxyOld)
+
+    # Cxx via backwards Euler
+    AAA = 2*dot(MMCXY, dot(MDX, V)) + oneOverWi*constOneVec
+    MMM = VGRAD + prod_mat(2*dot(MDX, U)) - oneOverWi*II
+    CxxOp = II - dt*MMM
+    CxxNew = linalg.solve(CxxOp, CxxOld + AAA*dt)
+
+    # Cyy via backwards Euler
+    AAA = 2*dot(MMCXY, dot(MDY, U)) + oneOverWi*constOneVec
+    MMM = VGRAD + 2*prod_mat(dot(MDY, V)) - oneOverWi*II
+    CyyOp = II - dt*MMM
+    CyyNew = linalg.solve(CyyOp, CyyOld + AAA*dt)
+
+    # Cxy via backwards Euler
+    AAA = dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))
+    MMM = VGRAD - oneOverWi*II
+    CxyOp = II - dt*MMM
+    CxyNew = linalg.solve(CxyOp, CxyOld + AAA*dt)
+
+    return (CxxNew, CyyNew, CxyNew)
+
+def k1_calc(Cvec, dt):
+
+    MMCXX = prod_mat(CxxOld)
+    MMCYY = prod_mat(CyyOld)
+    MMCXY = prod_mat(CxyOld)
+
+    # Calculate polymeric stress components
+    TxxOld = oneOverWi*CxxOld
+    TxxOld[N*M] += -oneOverWi
+    TyyOld = oneOverWi*CyyOld
+    TyyOld[N*M] += -oneOverWi
+    TxyOld = oneOverWi*CxyOld
+
+    # k1 = hf(x)
+    dCxxdt = 2*dot(MMCXX, dot(MDX, U)) + 2*dot(MMCXY, dot(MDX, V))\
+            - dot(VGRAD, CxxOld) - TxxOld 
+    dCyydt = + 2*dot(MMCXY, dot(MDY, U)) + 2*dot(MMCYY, dot(MDY, V))\
+            - dot(VGRAD, CyyOld) - TyyOld
+    dCxydt = dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))\
+            - dot(VGRAD, CxyOld) - TxyOld
+    
+    k1Vec = zeros((3*(2*N+1)*M), dtype='D')
+    k1Vec[0:(2*N+1)*M] = dt*dCxxdt
+    k1Vec[(2*N+1)*M:2*(2*N+1)*M]  = dt*dCyydt
+    k1Vec[2*(2*N+1)*M:]  = dt*dCxydt
+
+    return k1Vec
+    
+def k2_calc(CVec, dt, k1Vec):
+    # k2 = h f(y(x) + 1/2 k1, t + dt/2)
+    Cxxk1 = k1Vec[0:vecLen]
+    Cyyk1 = k1Vec[vecLen:2*vecLen]
+    Cxyk1 = k1Vec[2*vecLen:]
+
+    dt = dt/2.0
+    Cxxk2old = CxxOld + 0.5*Cxxk1
+    Cyyk2old = CyyOld + 0.5*Cyyk1
+    Cxyk2old = CxyOld + 0.5*Cxyk1
+
+    MMCXX = prod_mat(Cxxk2old)
+    MMCYY = prod_mat(Cyyk2old)
+    MMCXY = prod_mat(Cxyk2old)
+
+    # Calculate polymeric stress components
+    TxxOld = oneOverWi*(Cxxk2old)
+    TxxOld[N*M] += -oneOverWi
+    TyyOld = oneOverWi*(Cyyk2old)
+    TyyOld[N*M] += -oneOverWi
+    TxyOld = oneOverWi*(Cxyk2old)
+
+    Cxxk2 = dt*(2*dot(MMCXX, dot(MDX, U)) + 2*dot(MMCXY, dot(MDX, V))\
+            - dot(VGRAD, Cxxk2old) - TxxOld)
+    Cyyk2 = dt*(2*dot(MMCXY, dot(MDY, U)) + 2*dot(MMCYY, dot(MDY, V))\
+            - dot(VGRAD, Cyyk2old) - TyyOld)
+    Cxyk2 = dt*(dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))\
+            - dot(VGRAD, Cxyk2old) - TxyOld)
+    
+    return (Cxxk2, Cyyk2, Cxyk2)
+
+def RK2_step(CxxOld, CyyOld, CxyOld, dt):
+    # Do rk2 method. Update all the stresses so that k2 depends on k1 of all
+    # stresses
+    CVec = concatenate((CxxOld, CyyOld, CxyOld))
+    # k1
+
+    k1Vec = k1_calc(CVec, dt)
+
+    # k2
+
+    (Cxxk2, Cyyk2, Cxyk2) = k2_calc(CVec, dt, k1Vec)
+
+    # New Stresses
+
+    CxxNew = CxxOld + Cxxk2
+    CyyNew = CyyOld + Cyyk2
+    CxyNew = CxyOld + Cxyk2
+
+    return (CxxNew, CyyNew, CxyNew)
+
+def RK4_step():
+    pass
 
 # -----------------------------------------------------------------------------
 # MAIN
@@ -172,6 +322,7 @@ CFunc = ones(M)
 CFunc[0] = 2.
 
 assert Re != 0, "Setting Reynold's number to zero is dangerous!"
+invRe = 1. / Re
 oneOverWi = 1. / Wi 
 
 
@@ -229,7 +380,9 @@ PSI = zeros(vecLen, dtype='complex')
 
 PSIOld, Nu = pickle.load(open(inFileName, 'r'))
 
-PSI = increase_resolution(PSIOld)
+#PSI = increase_resolution(PSIOld)
+#PSI = decrease_resolution(PSIOld)
+PSI = PSIOld
 
 # Initial Stress is Newtonian
 
@@ -242,7 +395,7 @@ Cyy[N*M] += 1.0
 Cxy = zeros(vecLen, dtype='complex')
 Cxy = Wi*dot(MDYY, PSI) - Wi*dot(MDX, dot(MDX, PSI))
 
-# Form the operators
+# FORM THE STREAMFUNCTION OPERATORS
 PsiOpInvList = []
 for i in range(N):
     n = i-N
@@ -337,13 +490,6 @@ for tindx, currTime in enumerate(timesList):
               + dt*(1.-beta)*oneOverWi*dot(MDY, Cxy)[N*M:(N+1)*M]
     RHSVec[N*M] += dt*2
     
-    # This vector was exploding, was trying to test for the cause. 
-    #print 'RHSvec0 ', linalg.norm(RHSVec[N*M:(N+1)*M])
-    #print 'term1 ', linalg.norm(+ Re*dot(MDY, PSIOld)[N*M:(N+1)*M], 2)
-    #print 'term2 ', linalg.norm(+ dt*0.5*beta*dot(MDYYY, PSIOld)[N*M:(N+1)*M], 2)
-    #print 'term3 ', linalg.norm(- dt*Re*dot(dot(MMV, MDYY), PSIOld)[N*M:(N+1)*M], 2)
-    #print 'term4 ', linalg.norm(+ dt*(1.-beta)*oneOverWi*dot(MDY, Cxy)[N*M:(N+1)*M], 2)
-
     # Apply BC's
     for n in range (N+1): 
         # dyPsi(+-1) = 0  
@@ -373,58 +519,13 @@ for tindx, currTime in enumerate(timesList):
     for n in range(N+1, 2*N+1):
         PSI[n*M:(n+1)*M] = conj(PSI[(2*N-n)*M:(2*N-n+1)*M])
  
-    # Use Backward (implicit?) Euler method to step the stresses
-
-    # Calculate polymeric stress components
-    TxxOld = oneOverWi*CxxOld
-    TxxOld[N*M] += -1
-    TyyOld = oneOverWi*CyyOld
-    TyyOld[N*M] += -1
-    TxyOld = oneOverWi*CxyOld
-
-    MMCXX = prod_mat(CxxOld)
-    MMCYY = prod_mat(CyyOld)
-    MMCXY = prod_mat(CxyOld)
+    # set up gradient operator
     VGRAD = dot(MMU, MDX) + dot(MMV, MDY)
 
-    # CXX
-    #Cxx = CxxOld + 2*dt*dot(MMCXX, dot(MDX, U)) + 2*dt*dot(MMCXY, dot(MDX, V))\
-    #     - dt*dot(VGRAD, CxxOld) - dt*TxxOld 
+    # Step the Stresses
 
-    # Cxx via backwards Euler
-    AAA = 2*dot(MMCXY, dot(MDX, V)) + oneOverWi*constOneVec
-    MMM = VGRAD + prod_mat(2*dot(MDX, U)) - oneOverWi*II
-    CxxOp = II - dt*MMM
-    Cxx = linalg.solve(CxxOp, CxxOld + AAA*dt)
-
-    # CYY
-    #Cyy = CyyOld + 2*dt*dot(MMCXY, dot(MDY, U)) + 2*dt*dot(MMCYY, dot(MDY, V))\
-    #     - dt*dot(VGRAD, CyyOld) - dt*TyyOld
-
-    # Cyy via backwards Euler
-    AAA = 2*dot(MMCXY, dot(MDY, U)) + oneOverWi*constOneVec
-    MMM = VGRAD + 2*prod_mat(dot(MDY, V)) - oneOverWi*II
-    CyyOp = II - dt*MMM
-    Cyy = linalg.solve(CyyOp, CyyOld + AAA*dt)
-
-
-    # CXY
-    #Cxy = CxyOld + dt*dot(MMCXX, dot(MDY, U)) + dt*dot(MMCYY, dot(MDX, V))\
-    #     - dt*dot(VGRAD, CxyOld) - dt*TxyOld
-
-    # Cxy via backwards Euler
-    AAA = dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))
-    MMM = VGRAD - oneOverWi*II
-    CxyOp = II - dt*MMM
-    Cxy = linalg.solve(CxyOp, CxyOld + AAA*dt)
-
-    #print linalg.norm(CxxOld - Cxx)#, linalg.norm(CxxOld -CxxBack)
-    #print linalg.norm(CyyOld - Cyy)#, linalg.norm(CyyOld -CyyBack)
-    #print linalg.norm(CxyOld - Cxy)#, linalg.norm(CxyOld -CxyBack)
-    #print linalg.norm(PSIOld - PSI)
-    #exit(1)
+    (Cxx, Cyy, Cxy) = RK2_step(CxxOld, CyyOld, CxyOld, dt)
     
-
     # KE outputted is always that of the previous step
     Usq = dot(MMU,U) + dot(MMV,V)
     KE0 = 0.5*real(dot(INTY, Usq[N*M:(N+1)*M]))

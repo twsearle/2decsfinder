@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified:
+#   Last modified: Wed  5 Feb 15:30:24 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -51,6 +51,43 @@ tsm.initTSM(N_=N, M_=M, kx_=kx)
 
 # FUNCTIONS
 
+def mk_PSI_ECS_guess():
+
+    PSI = zeros(vecLen, dtype='complex')
+
+    PSI[N*M]   += 2.0/3.0
+    PSI[N*M+1] += 3.0/4.0
+    PSI[N*M+2] += 0.0
+    PSI[N*M+3] += -1.0/12.0
+
+    # Perturb 3 of 4 of first Chebyshevs of the 1st Fourier mode
+    PSI[(N-1)*M] = random.normal(loc=amp, scale=0.001) 
+    PSI[(N-1)*M+1] = random.normal(loc=amp, scale=0.001) 
+    PSI[(N-1)*M+3] = random.normal(loc=amp, scale=0.001) 
+
+    PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
+
+    # reduce the base flow KE by a roughly corresponding amount (8pc), with this
+    # energy in the perturbation (hopefully). ( 0.96 is about root(0.92) )
+    PSI[N*M:(N+1)*M] = 0.9*PSI[N*M:(N+1)*M]
+
+    # Check to make sure energy is large enough to get an ECS
+    U = dot(MDY, PSI)
+    V = - dot(MDX, PSI)
+    MMU = tsm.prod_mat(U)
+    MMV = tsm.prod_mat(V)
+    Usq = dot(MMU, U) + dot(MMV, V)
+    Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
+    KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
+    KE1 = 0.5*dot(INTY, Usq1)
+    print 'Kinetic energy of 0th mode is: ', KE0
+    print 'Kinetic energy of 1st mode is: ', KE1
+
+    print 'norm of 0th mode is: ', linalg.norm(PSI[N*M:(N+1)*M], 2)
+    print 'norm of 1st mode is: ', linalg.norm(PSI[(N-1)*M:N*M] +
+                                               PSI[(N+1)*M:(N+2)*M], 2)
+
+    return PSI
 # -----------------------------------------------------------------------------
 # MAIN
 # -----------------------------------------------------------------------------
@@ -111,42 +148,10 @@ for j in range(M):
 del j
 
 #### The initial stream-function
-PSI = zeros(vecLen, dtype='complex')
-
-PSI[N*M]   += 2.0/3.0
-PSI[N*M+1] += 3.0/4.0
-PSI[N*M+2] += 0.0
-PSI[N*M+3] += -1.0/12.0
-
-# Perturb 3 of 4 of first Chebyshevs of the 1st Fourier mode
-PSI[(N-1)*M] = random.normal(loc=amp, scale=0.001) 
-PSI[(N-1)*M+1] = random.normal(loc=amp, scale=0.001) 
-PSI[(N-1)*M+3] = random.normal(loc=amp, scale=0.001) 
-
-PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
-
-# reduce the base flow KE by a roughly corresponding amount (8pc), with this
-# energy in the perturbation (hopefully). ( 0.96 is about root(0.92) )
-PSI[N*M:(N+1)*M] = 0.9*PSI[N*M:(N+1)*M]
-
-# Check to make sure energy is large enough to get an ECS
-U = dot(MDY, PSI)
-V = - dot(MDX, PSI)
-MMU = tsm.prod_mat(U)
-MMV = tsm.prod_mat(V)
-Usq = dot(MMU, U) + dot(MMV, V)
-Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
-KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
-KE1 = 0.5*dot(INTY, Usq1)
-print 'Kinetic energy of 0th mode is: ', KE0
-print 'Kinetic energy of 1st mode is: ', KE1
-
-print 'norm of 0th mode is: ', linalg.norm(PSI[N*M:(N+1)*M], 2)
-print 'norm of 1st mode is: ', linalg.norm(PSI[(N-1)*M:N*M] +
-                                           PSI[(N+1)*M:(N+2)*M], 2)
+#PSI = mk_PSI_ECS_guess()
 
 # Read in stream function from file
-#(PSI, Nu) = pickle.load(open(inFileName,'r'))
+(PSI, Nu) = pickle.load(open(inFileName,'r'))
 
 
 # Form the operators
