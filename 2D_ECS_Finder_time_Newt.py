@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed  5 Feb 15:30:24 2014
+#   Last modified: Sun  9 Feb 17:18:25 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -74,8 +74,8 @@ def mk_PSI_ECS_guess():
     # Check to make sure energy is large enough to get an ECS
     U = dot(MDY, PSI)
     V = - dot(MDX, PSI)
-    MMU = tsm.prod_mat(U)
-    MMV = tsm.prod_mat(V)
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
     Usq = dot(MMU, U) + dot(MMV, V)
     Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
     KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
@@ -225,8 +225,8 @@ for tindx, currTime in enumerate(timesList):
     # Make the vector for the RHS of the equations
     U =   dot(MDY, PSI)
     V = - dot(MDX, PSI)
-    MMU = tsm.prod_mat(U)
-    MMV = tsm.prod_mat(V)
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
     
     RHSVec = dt*0.5*oneOverRe*dot(BIHARM, PSI) \
             + dot(LAPLAC, PSI) \
