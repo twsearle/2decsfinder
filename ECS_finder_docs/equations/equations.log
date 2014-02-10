@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/MacPorts 2013_5) (format=pdflatex 2013.12.8)  10 FEB 2014 12:26
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/MacPorts 2013_5) (format=pdflatex 2013.12.8)  10 FEB 2014 12:32
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -111,7 +111,7 @@ LaTeX Warning: No \author given.
 Here is how much of TeX's memory you used:
  859 strings out of 495035
  9460 string characters out of 6181625
- 65891 words of memory out of 5000000
+ 64891 words of memory out of 5000000
  4118 multiletter control sequences out of 15000+600000
  10263 words of font info for 37 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
@@ -128,7 +128,7 @@ exlive/fonts/type1/public/amsfonts/cm/cmr17.pfb></opt/local/share/texmf-texlive
 /fonts/type1/public/amsfonts/cm/cmr7.pfb></opt/local/share/texmf-texlive/fonts/
 type1/public/amsfonts/cm/cmr8.pfb></opt/local/share/texmf-texlive/fonts/type1/p
 ublic/amsfonts/cm/cmsy10.pfb>
-Output written on equations.pdf (2 pages, 115519 bytes).
+Output written on equations.pdf (2 pages, 115516 bytes).
 PDF statistics:
  59 PDF objects out of 1000 (max. 8388607)
  42 compressed objects within 1 object stream
