@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon 16 Dec 11:17:08 2013
+#   Last modified: Mon 10 Feb 12:25:19 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -17,22 +17,22 @@ import cPickle as pickle
 
 #SETTINGS----------------------------------------
 
-N = 6              # Number of Fourier modes
+N = 2              # Number of Fourier modes
 M = 40             # Number of Chebychevs (>4)
 Wi = 1.e-5           # The Weissenberg number
 Re = 3000.0           # The Reynold's number
-beta = 1.0
+beta = 0.8
 kx  = 1.313
 y_star = 0.5
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
 consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
-NOld = 2# N #-2 
-MOld = 40#M #- 10
+NOld = N #-2 
+MOld = M #- 10
 kxOld = kx
 ReOld = Re
-bOld = beta 
+bOld = 0.9#beta 
 WiOld = Wi
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
@@ -158,7 +158,7 @@ def solve_eq(xVec):
                              - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
                              - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
                              + beta*dot(BIHARM, PSI) \
-                             + (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
+                             - (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
                                           - dot(MDYY, Txy))
 
     #####xx
@@ -182,7 +182,7 @@ def solve_eq(xVec):
     #####psi0
     residualsVec[N*M:(N+1)*M] = - Re*dot(VGRAD, U)[N*M:(N+1)*M] \
                                 + beta*dot(MDYYY, PSI)[N*M:(N+1)*M] \
-                                + (1-beta)*oneOverWi*dot(MDY,Cxy)[N*M:(N+1)*M]
+                                + (1.-beta)*dot(MDY,Txy)[N*M:(N+1)*M]
     # set the pressure gradient (pressure driven flow)
     residualsVec[N*M] += 2.0
 
@@ -227,7 +227,7 @@ def solve_eq(xVec):
     ##cyy
     jacobian[0:vecLen, 2*vecLen:3*vecLen] = + (1.-beta)*oneOverWi*MDXY
     ##cxy
-    jacobian[0:vecLen, 3*vecLen:4*vecLen] = - (1.-beta)*oneOverWi*(MDYY - MDXX)
+    jacobian[0:vecLen, 3*vecLen:4*vecLen] = + (1.-beta)*oneOverWi*(MDXX - MDYY)
     ##Nu - vector not a product matrix
     jacobian[0:vecLen, 4*vecLen] = Re*dot(MDX, LAPLACPSI)
 
@@ -328,21 +328,6 @@ def solve_eq(xVec):
         jacobian[n*M + M-3, 0:4*vecLen + 1] = \
             concatenate( (zeros(n*M), DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
     del n
-
-    # a script I wrote which checks for a couple of obvious things (e.g zero
-    # rows)
-    #matrix_checker(jacobian, vecLen, False)
-    #print "Determinant of jacobian = ", linalg.det(jacobian)
-    #print "Block by Block determinant"
-    #for j in range(4): 
-    #    for i in range(4):
-    #        d = linalg.det(jacobian[j*vecLen:(j+1)*vecLen,
-    #                                i*vecLen:(i+1)*vecLen])
-    #        norm = linalg.norm(jacobian[j*vecLen:(j+1)*vecLen,
-    #                                i*vecLen:(i+1)*vecLen], 2)
-    #        s = "BLOCK: row {r}, column {c} [det, norm] =[{d} \t{n}]"
-    #        print s.format(c=i+1, r=j+1, d=d, n=norm)
-    #del i,j,d
 
     return(jacobian, residualsVec)
 
