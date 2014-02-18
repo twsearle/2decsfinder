@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon 10 Feb 12:25:19 2014
+#   Last modified: Tue 11 Feb 11:13:41 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -21,7 +21,7 @@ N = 2              # Number of Fourier modes
 M = 40             # Number of Chebychevs (>4)
 Wi = 1.e-5           # The Weissenberg number
 Re = 3000.0           # The Reynold's number
-beta = 0.8
+beta = 1.0
 kx  = 1.313
 y_star = 0.5
 
@@ -154,9 +154,9 @@ def solve_eq(xVec):
     residualsVec = zeros((4*vecLen + 1), dtype='complex')
 
     #####psi
-    residualsVec[0:vecLen] = +  Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
+    residualsVec[0:vecLen] = + Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
                              - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
-                             - Re*dot(MMV, dot(MDY, LAPLACPSI))  \
+                             - Re*dot(MMV, dot(MDY, LAPLACPSI)) \
                              + beta*dot(BIHARM, PSI) \
                              - (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
                                           - dot(MDYY, Txy))
@@ -223,11 +223,11 @@ def solve_eq(xVec):
                                    - Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
                                    + beta*BIHARM 
     ##cxx
-    jacobian[0:vecLen, vecLen:2*vecLen] = - (1.-beta)*oneOverWi*MDXY
+    jacobian[0:vecLen, vecLen:2*vecLen] = + (1.-beta)*oneOverWi*MDXY
     ##cyy
-    jacobian[0:vecLen, 2*vecLen:3*vecLen] = + (1.-beta)*oneOverWi*MDXY
+    jacobian[0:vecLen, 2*vecLen:3*vecLen] = - (1.-beta)*oneOverWi*MDXY
     ##cxy
-    jacobian[0:vecLen, 3*vecLen:4*vecLen] = + (1.-beta)*oneOverWi*(MDXX - MDYY)
+    jacobian[0:vecLen, 3*vecLen:4*vecLen] = - (1.-beta)*oneOverWi*(MDXX - MDYY)
     ##Nu - vector not a product matrix
     jacobian[0:vecLen, 4*vecLen] = Re*dot(MDX, LAPLACPSI)
 
@@ -245,7 +245,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[vecLen:2*vecLen, 3*vecLen:4*vecLen] = 2.*MMDXV
     ##Nu - vector not a product matrix
-    jacobian[vecLen:2*vecLen, 4*vecLen] = Re*dot(MDX, Cxx) 
+    jacobian[vecLen:2*vecLen, 4*vecLen] = dot(MDX, Cxx) 
 
     ###### Cyy
     ##psi
@@ -261,7 +261,7 @@ def solve_eq(xVec):
     ##cxy
     jacobian[2*vecLen:3*vecLen, 3*vecLen:4*vecLen] = 2.*MMDYU
     ##Nu - vector not a product matrix
-    jacobian[2*vecLen:3*vecLen, 4*vecLen] = Re*dot(MDX, Cyy)
+    jacobian[2*vecLen:3*vecLen, 4*vecLen] = dot(MDX, Cyy)
 
     ###### Cxy
     ##psi
@@ -277,7 +277,7 @@ def solve_eq(xVec):
     jacobian[3*vecLen:4*vecLen, 3*vecLen:4*vecLen] = Nu*MDX - VGRAD \
                                                      - oneOverWi*II
     ##Nu - vector not a product matrix
-    jacobian[3*vecLen:4*vecLen, 4*vecLen] = Re*dot(MDX, Cxy)
+    jacobian[3*vecLen:4*vecLen, 4*vecLen] = dot(MDX, Cxy)
 
     ###### Nu 
     jacobian[4*vecLen, : ] = SPEEDCONDITION
@@ -287,11 +287,9 @@ def solve_eq(xVec):
     jacobian[N*M:(N+1)*M, :] = 0
     ##u0
     jacobian[N*M:(N+1)*M, 0:vecLen] = \
-                            - Re*dot(prod_mat(dot(MDXY, PSI)), MDY)[N*M:(N+1)*M, :]\
-                            - Re*dot(prod_mat(dot(MDY, PSI)), MDXY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
                             + Re*dot(prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
-                            + beta*MDYYY[N*M:(N+1)*M, :]
+                            + MDYYY[N*M:(N+1)*M, :]
     ##cxx
     jacobian[N*M:(N+1)*M, vecLen:2*vecLen] = 0
     ##cyy
@@ -427,14 +425,21 @@ del j
 
 #PSI = random.random(vecLen)/10.0
 
-PSI = zeros(vecLen, dtype='complex')
+#PSI = zeros(vecLen, dtype='complex')
 #PSI[N*M+1] =  3.0/8.0
 #PSI[N*M+2] = -1.0
 #PSI[N*M+3] = -1.0/8.0
+
+# Forgotten which of these is right.
+#PSI[N*M]   += 2.0/3.0
+#PSI[N*M+1] += 3.0/4.0
+#PSI[N*M+2] += 0.0
+#PSI[N*M+3] += -1.0/12.0
+#Nu  = 0.35
+
 #inFp = open('pf-N2-M40-kx1.313-Re3000.0.pickle', 'r')
 #PSI, Nu = pickle.load(inFp)
 
-#Nu  = 0.35
 #Cxx = zeros(vecLen, dtype='complex')
 #Cxx = 2*dot(MDX, dot(MDY, PSI))
 #Cxx[N*M] += 1.0
@@ -446,10 +451,10 @@ PSI = zeros(vecLen, dtype='complex')
 
 PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
 
-PSI = increase_resolution(PSIOld)
-Cxx = increase_resolution(CxxOld)
-Cyy = increase_resolution(CyyOld)
-Cxy = increase_resolution(CxyOld)
+#PSI = increase_resolution(PSIOld)
+#Cxx = increase_resolution(CxxOld)
+#Cyy = increase_resolution(CyyOld)
+#Cxy = increase_resolution(CxyOld)
 
 #PSI[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = PSItmp[0:M*(2*NOld+1)]
 #Cxx[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = Cxxtmp[0:M*(2*NOld+1)]
