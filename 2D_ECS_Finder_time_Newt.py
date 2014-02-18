@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Sun  9 Feb 17:18:25 2014
+#   Last modified: Tue 18 Feb 2014 14:02:09 GMT
 #
 #-----------------------------------------------------------------------------
 
@@ -61,33 +61,40 @@ def mk_PSI_ECS_guess():
     PSI[N*M+3] += -1.0/12.0
 
     # Perturb 3 of 4 of first Chebyshevs of the 1st Fourier mode
-    PSI[(N-1)*M] = random.normal(loc=amp, scale=0.001) 
-    PSI[(N-1)*M+1] = random.normal(loc=amp, scale=0.001) 
-    PSI[(N-1)*M+3] = random.normal(loc=amp, scale=0.001) 
+    PSI[(N-1)*M] = -random.normal(loc=amp, scale=0.001) 
+    PSI[(N-1)*M+2] = random.normal(loc=amp, scale=0.001) 
+    PSI[(N-1)*M+4] = -0.1*random.normal(loc=amp, scale=0.001) 
+    PSI[(N-1)*M+6] = -0.05*random.normal(loc=amp, scale=0.001) 
 
     PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
     # reduce the base flow KE by a roughly corresponding amount (8pc), with this
     # energy in the perturbation (hopefully). ( 0.96 is about root(0.92) )
-    PSI[N*M:(N+1)*M] = 0.9*PSI[N*M:(N+1)*M]
+    bfReduc = 0.8
+    PSI[N*M:(N+1)*M] = bfReduc*PSI[N*M:(N+1)*M]
 
     # Check to make sure energy is large enough to get an ECS
     U = dot(MDY, PSI)
     V = - dot(MDX, PSI)
-    MMU = tsm.c_prod_mat(U)
-    MMV = tsm.c_prod_mat(V)
+    MMU = tsm.prod_mat(U)
+    MMV = tsm.prod_mat(V)
     Usq = dot(MMU, U) + dot(MMV, V)
     Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
+    Usq2 = Usq[(N-2)*M:(N-1)*M] + Usq[(N+2)*M:(N+3)*M]
     KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
     KE1 = 0.5*dot(INTY, Usq1)
+    KE2 = 0.5*dot(INTY, Usq2)
     print 'Kinetic energy of 0th mode is: ', KE0
     print 'Kinetic energy of 1st mode is: ', KE1
+    print 'TOTAL: ', KE0+KE1+KE2
 
     print 'norm of 0th mode is: ', linalg.norm(PSI[N*M:(N+1)*M], 2)
     print 'norm of 1st mode is: ', linalg.norm(PSI[(N-1)*M:N*M] +
                                                PSI[(N+1)*M:(N+2)*M], 2)
 
     return PSI
+
+
 # -----------------------------------------------------------------------------
 # MAIN
 # -----------------------------------------------------------------------------
