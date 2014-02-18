@@ -16,6 +16,7 @@ import sys
 from matplotlib import pyplot as plt
 from matplotlib import rc
 import ConfigParser
+import argparse
 
 #SETTINGS---------------------------------------------------
 
@@ -40,6 +41,15 @@ kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
 baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
 
 inFileName = "psi{0}".format(baseFileName)
+
+# SETUP ARGUMENT PARSER
+
+parser = argparse.ArgumentParser(description='plot Fourier modes from data file')
+parser.add_argument('-f','--filename', default=inFileName,
+                     help='input filename')
+args = parser.parse_args()
+inFileName = args.filename
+print inFileName
 
 #-----------------------------------------------------------
 
