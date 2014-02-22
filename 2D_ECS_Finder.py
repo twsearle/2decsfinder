@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue 11 Feb 11:13:41 2014
+#   Last modified: Sat 22 Feb 22:02:33 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -17,12 +17,12 @@ import cPickle as pickle
 
 #SETTINGS----------------------------------------
 
-N = 2              # Number of Fourier modes
-M = 40             # Number of Chebychevs (>4)
+N = 3              # Number of Fourier modes
+M = 30             # Number of Chebychevs (>4)
 Wi = 1.e-5           # The Weissenberg number
 Re = 3000.0           # The Reynold's number
 beta = 1.0
-kx  = 1.313
+kx  = 1.31
 y_star = 0.5
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
@@ -32,7 +32,7 @@ NOld = N #-2
 MOld = M #- 10
 kxOld = kx
 ReOld = Re
-bOld = 0.9#beta 
+bOld = beta 
 WiOld = Wi
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
@@ -172,12 +172,12 @@ def solve_eq(xVec):
                                       + 2.*dot(MMDYV, Cyy) - Tyy
 
     #####xy
-    residualsVec[3*vecLen:4*vecLen] = Nu*dot(MDY,Cxy) - dot(VGRAD, Cxy) \
+    residualsVec[3*vecLen:4*vecLen] = Nu*dot(MDX,Cxy) - dot(VGRAD, Cxy) \
                                       + dot(MMDYU, Cxx) \
                                       + dot(MMDXV, Cyy) - Txy
 
     #####Nu
-    residualsVec[4*vecLen] = dot(SPEEDCONDITION[3*vecLen:4*vecLen], Cxy)
+    residualsVec[4*vecLen] = imag(dot(SPEEDCONDITION, PSI[(N+1)*M:(N+2)*M]))
 
     #####psi0
     residualsVec[N*M:(N+1)*M] = - Re*dot(VGRAD, U)[N*M:(N+1)*M] \
@@ -280,7 +280,8 @@ def solve_eq(xVec):
     jacobian[3*vecLen:4*vecLen, 4*vecLen] = dot(MDX, Cxy)
 
     ###### Nu 
-    jacobian[4*vecLen, : ] = SPEEDCONDITION
+    jacobian[4*vecLen, (N+1)*M:(N+2)*M] = -1.j*0.5*SPEEDCONDITION
+    jacobian[4*vecLen, (N-1)*M:N*M] = 1.j*0.5*SPEEDCONDITION
 
     ###### psi0 equation
     #set row to zero
@@ -437,7 +438,7 @@ del j
 #PSI[N*M+3] += -1.0/12.0
 #Nu  = 0.35
 
-#inFp = open('pf-N2-M40-kx1.313-Re3000.0.pickle', 'r')
+#inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
 #PSI, Nu = pickle.load(inFp)
 
 #Cxx = zeros(vecLen, dtype='complex')
@@ -449,7 +450,7 @@ del j
 #Cxy = zeros(vecLen, dtype='complex')
 #Cxy = dot(MDYY, PSI) - dot(MDX, dot(MDX, PSI))
 
-PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
+PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open(inFileName, 'r'))
 
 #PSI = increase_resolution(PSIOld)
 #Cxx = increase_resolution(CxxOld)
@@ -470,10 +471,9 @@ xVec[4*vecLen]          = Nu
 
 # Set only the imaginary part at a point to zero to constrain nu. I will choose
 # y = 0.5
-SPEEDCONDITION = zeros(4*vecLen+1, dtype = 'complex')
+SPEEDCONDITION = zeros(M, dtype = 'complex')
 for m in range(M):
-    SPEEDCONDITION[3*vecLen + (N-1)*M + m] = cos(m*arccos(y_star)) 
-    SPEEDCONDITION[3*vecLen + (N+1)*M + m] = -cos(m*arccos(y_star))
+    SPEEDCONDITION[m] = cos(m*arccos(y_star)) 
 
 print "Begin Newton-Rhaphson"
 print "------------------------------------"
