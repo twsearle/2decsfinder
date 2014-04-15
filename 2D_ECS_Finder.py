@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Sun  2 Mar 00:58:42 2014
+#   Last modified: Mon 14 Apr 17:51:54 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -210,6 +210,43 @@ def solve_eq(xVec):
     # Psi0(-1) = 0
     residualsVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M]))
 
+    return(residualsVec)
+
+def find_jacobian(x):
+
+    PSI = xVec[0:vecLen] 
+    Cxx = xVec[1*vecLen:2*vecLen] 
+    Cyy = xVec[2*vecLen:3*vecLen] 
+    Cxy = xVec[3*vecLen:4*vecLen]
+    Nu  = xVec[4*vecLen]
+
+
+    # Useful Vectors
+    Txx = oneOverWi * Cxx 
+    Txx[N*M] -= 1.0
+    Tyy = oneOverWi * Cyy 
+    Tyy[N*M] -= 1.0
+    Txy = oneOverWi * Cxy
+
+    U         = + dot(MDY, PSI)
+    V         = - dot(MDX, PSI)
+    LAPLACPSI = dot(LAPLAC, PSI)
+
+    # Useful Operators
+    MMU    = prod_mat(U)
+    MMV    = prod_mat(V)
+    VGRAD  = dot(MMU,MDX) + dot(MMV,MDY)
+    MMDXU  = prod_mat(dot(MDX, U))
+    MMDXV  = prod_mat(dot(MDX, V))
+    MMDYU  = prod_mat(dot(MDY, U))
+    MMDYV  = prod_mat(dot(MDY, V))
+
+    MMDXPSI   = prod_mat(dot(MDX, LAPLACPSI))
+    MMDXCXX   = prod_mat(dot(MDX, Cxx))
+    MMDXCYY   = prod_mat(dot(MDX, Cyy))
+    MMDXCXY   = prod_mat(dot(MDX, Cxy))
+
+
     #################SET THE JACOBIAN MATRIX####################
 
     jacobian = zeros((4*vecLen+1,  4*vecLen+1), dtype='complex')
@@ -328,7 +365,7 @@ def solve_eq(xVec):
             concatenate( (zeros(n*M), DERIVBOT, zeros((2*N-n)*M+3*vecLen+1)) )
     del n
 
-    return(jacobian, residualsVec)
+    return jacobian
 
 
 def symmetrise(vec):
@@ -527,7 +564,8 @@ print "Begin Newton-Rhaphson"
 print "------------------------------------"
 print "L2norm:"
 while True:
-    (J_x0, f_x0) = solve_eq(xVec)
+    f_x0 = solve_eq(xVec)
+    J_x0 = find_jacobian(xVec)
     dx = linalg.solve(J_x0, -f_x0)
     xVec = xVec + dx
     L2norm = linalg.norm(f_x0,2)

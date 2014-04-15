@@ -16,6 +16,7 @@
 \newcommand{\scxy}{\delta c_{xy}}
 \newcommand{\spsi}{\delta \psi}
 
+
 \newcommand{\Wi}{\mathrm{Wi}}
 \newcommand{\Rey}{\mathrm{Re \ }}
 \newcommand{\II}{\mathbf{I}}
@@ -26,10 +27,20 @@
 \maketitle
 
 \section{The full equations}
+Equations given are the components of the Navier-Stokes equation for the streamfunction and Oldroyd-B equation for the stress. 
 \begin{align}
-    T_{ij} &= \frac{1}{\Wi} (C_{ij} - \II_{ij}) \\
-    u	   &= \dd{y} \psi \\
-    v	   &= -\dd{x} \psi
+    \Rey \left[\dd{t} \lpl \psi + \left(\mathbf{u} \cdot \nabla\right) \lpl \psi \right] &=
+    \nabla p + \beta \bih \psi - (1-\beta) \nabla \times \nabla \cdot \boldsymbol{\tau} \\  
+    \nabla \cdot \mathbf{u} &= 0 \\
+    \dd{t} \mathbf{c} \left( \mathbf{u} \cdot \nabla \right) \mathbf{c} &= 
+    \left( \nabla \mathbf{u} \right)^{T} c + c \left( \nabla \mathbf{u} \right) -\boldsymbol{\tau}
+\end{align}
+
+\begin{align}
+    \left(\nabla \mathbf u\right)_{i,j} &= \partial_{i} u_{j} \nonumber\\
+    T_{ij} &= \frac{1}{\Wi} (C_{ij} - \II_{ij}) \nonumber\\
+    u	   &= \dd{y} \psi \nonumber\\
+    v	   &= -\dd{x} \psi \nonumber
 \end{align}
 
 \subsection{$\psi$}
@@ -43,21 +54,21 @@
 
 \begin{align}
     0 &= \nu \dd{x} C_{xx} - (u\dd{x} + v\dd{y}) C_{xx} \nonumber\\
-      &+ 2C_{xx}\dd{x}u + 2C_{xy}\dd{x}v -  T_{xx}
+      &+ 2C_{xx}\dd{x}u + 2C_{xy}\dd{y}u -  T_{xx}
 \end{align}
 
 \subsection{$C_{yy}$}
 
 \begin{align}
     0 &= \nu \dd{x} C_{yy} - (u\dd{x} + v\dd{y}) C_{yy} \nonumber\\
-    &+ 2C_{xy} \dd{y}u + 2C_{yy}\dd{y}v - T_{yy}
+    &+ 2C_{xy} \dd{x}v + 2C_{yy}\dd{y}v - T_{yy}
 \end{align}
 
 \subsection{$C_{xy}$}
 
 \begin{align}
     0 &= \nu \dd{x} C_{xy} - (u\dd{x} + v\dd{y}) C_{xy} \nonumber\\
-    &+ C_{xx} \dd{y}u + C_{yy}\dd{x}v - T_{xy}
+    &+ C_{xx} \dd{x}v + C_{yy}\dd{y}u - T_{xy}
 \end{align}
 
 \subsection{$\psi_{0}$}
@@ -88,9 +99,9 @@ C_{ij} = C_{ij} +\scij
 
 \begin{align}
     0 &= \nu \dd{x} \scxx - (\mathbf{V}\cdot \nabla) \scxx \nonumber \\
-    &- (\dd{x}C_{xx})\dd{y}\spsi + (\dd{y}C_{xx})\dd{x} \spsi \nonumber\\
-    &+ 2(\dd{x} U) \scxx + 2(\dd{x} V) \scxy \nonumber\\
-    &+ 2C_{xx}\dd{xy} \spsi - 2C_{xy}\dd{xx}\spsi - \frac{1}{\Wi}\scxx
+    &- (\dd{x}C_{xx})\dd{y} \spsi + (\dd{y}C_{xx})\dd{x} \spsi \nonumber\\
+    &+ 2(\dd{x} U) \scxx + 2(\dd{y} U) \scxy \nonumber\\
+    &+ 2C_{xx}\dd{xy} \spsi + 2C_{xy}\dd{yy}\spsi - \frac{1}{\Wi}\scxx
 \end{align}
 
 \subsection{$C_{yy}$}
@@ -98,8 +109,8 @@ C_{ij} = C_{ij} +\scij
 \begin{align}
     0 &= \nu \dd{x} \scyy - (\mathbf{V}\cdot \nabla) \scyy \nonumber \\
     &- (\dd{x}C_{yy})\dd{y}\spsi + (\dd{y}C_{yy})\dd{x} \spsi \nonumber\\
-    &+ 2(\dd{y}U)\scxy + 2(\dd{y}V)\scyy \nonumber \\
-    &+ C_{xy}\dd{yy}\spsi - C_{yy}\dd{xy} \spsi - \frac{\scyy}{\Wi} 
+    &+ 2(\dd{x}V)\scxy + 2(\dd{y}V)\scyy \nonumber \\
+    &- 2C_{xy}\dd{xx}\spsi - 2C_{yy}\dd{xy} \spsi - \frac{\scyy}{\Wi} 
 \end{align}
 
 \subsection{$C_{xy}$}
@@ -107,8 +118,8 @@ C_{ij} = C_{ij} +\scij
 \begin{align}
     0 &= \nu \dd{x} \scxy - (\mathbf{V}\cdot \nabla) \scxy \nonumber \\
     &- (\dd{x}C_{xy})\dd{y}\spsi + (\dd{y}C_{xy})\dd{x} \spsi \nonumber\\
-    &+ (\dd{y}U) \scxx + (\dd{x}V) \scyy \nonumber \\
-    &+ C_{xx}\dd{yy} \spsi - C_{yy} \dd{xx} \spsi - \frac{\scxy}{\Wi}
+    &+ (\dd{y}U) \scyy + (\dd{x}V) \scxx \nonumber \\
+    &+ C_{yy}\dd{yy} \spsi - C_{xx} \dd{xx} \spsi - \frac{\scxy}{\Wi}
 \end{align}
 
 \subsection{$\psi_{0}$}
