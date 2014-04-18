@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon 14 Apr 17:51:54 2014
+#   Last modified: Thu 17 Apr 17:35:39 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -11,107 +11,47 @@ Newton-Rhaphson and the Oldroyd-B model."""
 #MODULES
 from scipy import *
 from scipy import linalg
+from scipy import optimize
 import matplotlib.pyplot as plt
 import cPickle as pickle
+import ConfigParser
+
+import TobySpectralMethods as tsm
+
 
 
 #SETTINGS----------------------------------------
 
-N = 3              # Number of Fourier modes
-M = 30             # Number of Chebychevs (>4)
-Wi = 1.e-5           # The Weissenberg number
-Re = 3000.0           # The Reynold's number
-beta = 0.1
-kx  = 1.31
+config = ConfigParser.RawConfigParser()
+fp = open('config.cfg')
+config.readfp(fp)
+N = config.getint('General', 'N')
+M = config.getint('General', 'M')
+Re = config.getfloat('General', 'Re')
+Wi = config.getfloat('General', 'Wi')
+beta = config.getfloat('General', 'beta')
+kx = config.getfloat('General', 'kx')
+fp.close()
+
 y_star = 0.5
 
 NRdelta = 1e-06     # Newton-Rhaphson tolerance
 
 consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
-NOld = N #-2 
-MOld = M #- 10
+NOld = N#3 
+MOld = M#30
 kxOld = kx
 ReOld = Re
-bOld = beta 
+bOld = beta+0.0001 
 WiOld = Wi
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
+
+tsm.initTSM(N_=N, M_=M, kx_=kx)
 #------------------------------------------------
 
 #FUNCTIONS
-
-def mk_single_diffy():
-    """Makes a matrix to differentiate a single vector of Chebyshev's, 
-    for use in constructing large differentiation matrix for whole system"""
-    # make matrix:
-    mat = zeros((M, M), dtype='d')
-    for m in range(M):
-        for p in range(m+1, M, 2):
-            mat[m,p] = 2*p*oneOverC[m]
-
-    return mat
-
-def mk_diff_y():
-    """Make the matrix to differentiate a velocity vector wrt y."""
-    D = mk_single_diffy()
-    MDY = zeros( (vecLen,  vecLen) )
-     
-    for cheb in range(0,vecLen,M):
-        MDY[cheb:cheb+M, cheb:cheb+M] = D
-    del cheb
-    return MDY
-
-def mk_diff_x():
-    """Make matrix to do fourier differentiation wrt x."""
-    MDX = zeros( (vecLen, vecLen), dtype='complex')
-
-    n = -N
-    for i in range(0, vecLen, M):
-        MDX[i:i+M, i:i+M] = eye(M, M, dtype='complex')*n*kx*1.j
-        n += 1
-    del n, i
-    return MDX
-
-def cheb_prod_mat(velA):
-    """Function to return a matrix for left-multiplying two Chebychev vectors"""
-
-    D = zeros((M, M), dtype='complex')
-
-    for n in range(M):
-        for m in range(-M+1,M):     # Bottom of range is inclusive
-            itr = abs(n-m)
-            if (itr < M):
-                D[n, abs(m)] += 0.5*oneOverC[n]*CFunc[itr]*CFunc[abs(m)]*velA[itr]
-    del m, n, itr
-    return D
-
-def prod_mat(velA):
-    """Function to return a matrix ready for the left dot product with another
-    velocity vector"""
-    MM = zeros((vecLen, vecLen), dtype='complex')
-
-    #First make the middle row
-    midMat = zeros((M, vecLen), dtype='complex')
-    for n in range(2*N+1):       # Fourier Matrix is 2*N+1 cheb matricies
-        yprodmat = cheb_prod_mat(velA[n*M:(n+1)*M])
-        endind = 2*N+1-n
-        midMat[:, (endind-1)*M:endind*M] = yprodmat
-    del n
-
-    #copy matrix into MM, according to the matrix for spectral space
-    # top part first
-    for i in range(0, N):
-        MM[i*M:(i+1)*M, :] = column_stack((midMat[:, (N-i)*M:], zeros((M, (N-i)*M))) )
-    del i
-    # middle
-    MM[N*M:(N+1)*M, :] = midMat
-    # bottom 
-    for i in range(0, N):
-        MM[(i+N+1)*M:(i+2+N)*M, :] = column_stack((zeros((M, (i+1)*M)), midMat[:, :(2*N-i)*M] ))
-    del i
-
-    return MM
 
 def solve_eq(xVec):
     """calculates the residuals of equations and the jacobian that ought to
@@ -126,9 +66,9 @@ def solve_eq(xVec):
 
     # Useful Vectors
     Txx = oneOverWi * Cxx 
-    Txx[N*M] -= 1.0
+    Txx[N*M] -= oneOverWi
     Tyy = oneOverWi * Cyy 
-    Tyy[N*M] -= 1.0
+    Tyy[N*M] -= oneOverWi
     Txy = oneOverWi * Cxy
 
     U         = + dot(MDY, PSI)
@@ -136,18 +76,18 @@ def solve_eq(xVec):
     LAPLACPSI = dot(LAPLAC, PSI)
 
     # Useful Operators
-    MMU    = prod_mat(U)
-    MMV    = prod_mat(V)
+    MMU    = tsm.c_prod_mat(U)
+    MMV    = tsm.c_prod_mat(V)
     VGRAD  = dot(MMU,MDX) + dot(MMV,MDY)
-    MMDXU  = prod_mat(dot(MDX, U))
-    MMDXV  = prod_mat(dot(MDX, V))
-    MMDYU  = prod_mat(dot(MDY, U))
-    MMDYV  = prod_mat(dot(MDY, V))
+    MMDXU  = tsm.c_prod_mat(dot(MDX, U))
+    MMDXV  = tsm.c_prod_mat(dot(MDX, V))
+    MMDYU  = tsm.c_prod_mat(dot(MDY, U))
+    MMDYV  = tsm.c_prod_mat(dot(MDY, V))
 
-    MMDXPSI   = prod_mat(dot(MDX, LAPLACPSI))
-    MMDXCXX   = prod_mat(dot(MDX, Cxx))
-    MMDXCYY   = prod_mat(dot(MDX, Cyy))
-    MMDXCXY   = prod_mat(dot(MDX, Cxy))
+    MMDXPSI   = tsm.c_prod_mat(dot(MDX, LAPLACPSI))
+    MMDXCXX   = tsm.c_prod_mat(dot(MDX, Cxx))
+    MMDXCYY   = tsm.c_prod_mat(dot(MDX, Cyy))
+    MMDXCXY   = tsm.c_prod_mat(dot(MDX, Cxy))
 
     #######calculate the Residuals########
 
@@ -223,9 +163,9 @@ def find_jacobian(x):
 
     # Useful Vectors
     Txx = oneOverWi * Cxx 
-    Txx[N*M] -= 1.0
+    Txx[N*M] -= oneOverWi
     Tyy = oneOverWi * Cyy 
-    Tyy[N*M] -= 1.0
+    Tyy[N*M] -= oneOverWi
     Txy = oneOverWi * Cxy
 
     U         = + dot(MDY, PSI)
@@ -233,18 +173,18 @@ def find_jacobian(x):
     LAPLACPSI = dot(LAPLAC, PSI)
 
     # Useful Operators
-    MMU    = prod_mat(U)
-    MMV    = prod_mat(V)
+    MMU    = tsm.c_prod_mat(U)
+    MMV    = tsm.c_prod_mat(V)
     VGRAD  = dot(MMU,MDX) + dot(MMV,MDY)
-    MMDXU  = prod_mat(dot(MDX, U))
-    MMDXV  = prod_mat(dot(MDX, V))
-    MMDYU  = prod_mat(dot(MDY, U))
-    MMDYV  = prod_mat(dot(MDY, V))
+    MMDXU  = tsm.c_prod_mat(dot(MDX, U))
+    MMDXV  = tsm.c_prod_mat(dot(MDX, V))
+    MMDYU  = tsm.c_prod_mat(dot(MDY, U))
+    MMDYV  = tsm.c_prod_mat(dot(MDY, V))
 
-    MMDXPSI   = prod_mat(dot(MDX, LAPLACPSI))
-    MMDXCXX   = prod_mat(dot(MDX, Cxx))
-    MMDXCYY   = prod_mat(dot(MDX, Cyy))
-    MMDXCXY   = prod_mat(dot(MDX, Cxy))
+    MMDXPSI   = tsm.c_prod_mat(dot(MDX, LAPLACPSI))
+    MMDXCXX   = tsm.c_prod_mat(dot(MDX, Cxx))
+    MMDXCYY   = tsm.c_prod_mat(dot(MDX, Cyy))
+    MMDXCXY   = tsm.c_prod_mat(dot(MDX, Cxy))
 
 
     #################SET THE JACOBIAN MATRIX####################
@@ -256,8 +196,8 @@ def find_jacobian(x):
     jacobian[0:vecLen, 0:vecLen] = + Nu*Re*dot(MDX, LAPLAC) \
                                    - Re*dot(dot(MMU, MDX), LAPLAC) \
                                    - Re*dot(dot(MMV, MDY), LAPLAC) \
-                                   + Re*dot(prod_mat(dot(MDY, LAPLACPSI)), MDX) \
-                                   - Re*dot(prod_mat(dot(MDX, LAPLACPSI)), MDY) \
+                                   + Re*dot(tsm.c_prod_mat(dot(MDY, LAPLACPSI)), MDX) \
+                                   - Re*dot(tsm.c_prod_mat(dot(MDX, LAPLACPSI)), MDY) \
                                    + beta*BIHARM 
     ##cxx
     jacobian[0:vecLen, vecLen:2*vecLen] = + (1.-beta)*oneOverWi*MDXY
@@ -270,10 +210,10 @@ def find_jacobian(x):
 
     ###### Cxx
     ##psi                                   - dv.grad cxx
-    jacobian[vecLen:2*vecLen, 0:vecLen] = - dot(prod_mat(dot(MDX, Cxx)), MDY) \
-                                          + dot(prod_mat(dot(MDY, Cxx)), MDX) \
-                                          + 2.*dot(prod_mat(Cxx), MDXY) \
-                                          + 2.*dot(prod_mat(Cxy), MDXY) \
+    jacobian[vecLen:2*vecLen, 0:vecLen] = - dot(tsm.c_prod_mat(dot(MDX, Cxx)), MDY) \
+                                          + dot(tsm.c_prod_mat(dot(MDY, Cxx)), MDX) \
+                                          + 2.*dot(tsm.c_prod_mat(Cxx), MDXY) \
+                                          + 2.*dot(tsm.c_prod_mat(Cxy), MDXY) \
     ##cxx
     jacobian[vecLen:2*vecLen, vecLen:2*vecLen] = Nu*MDX - VGRAD + 2.*MMDXU \
                                                  - oneOverWi*II 
@@ -286,10 +226,10 @@ def find_jacobian(x):
 
     ###### Cyy
     ##psi
-    jacobian[2*vecLen:3*vecLen, 0:vecLen]  = - dot(prod_mat(dot(MDX, Cyy)), MDY) \
-                                             + dot(prod_mat(dot(MDY, Cyy)), MDX) \
-                                             - 2.*dot(prod_mat(Cyy), MDXY) \
-                                             - 2.*dot(prod_mat(Cxy), MDXX) \
+    jacobian[2*vecLen:3*vecLen, 0:vecLen]  = - dot(tsm.c_prod_mat(dot(MDX, Cyy)), MDY) \
+                                             + dot(tsm.c_prod_mat(dot(MDY, Cyy)), MDX) \
+                                             - 2.*dot(tsm.c_prod_mat(Cyy), MDXY) \
+                                             - 2.*dot(tsm.c_prod_mat(Cxy), MDXX) \
     ##cxx
     jacobian[2*vecLen:3*vecLen, vecLen:2*vecLen] = 0
     ##cyy
@@ -302,10 +242,10 @@ def find_jacobian(x):
 
     ###### Cxy
     ##psi
-    jacobian[3*vecLen:4*vecLen, 0:vecLen]   = - dot(prod_mat(dot(MDX, Cxy)), MDY) \
-                                              + dot(prod_mat(dot(MDY, Cxy)), MDX) \
-                                              + dot(prod_mat(Cyy), MDYY) \
-                                              - dot(prod_mat(Cxx), MDXX) \
+    jacobian[3*vecLen:4*vecLen, 0:vecLen]   = - dot(tsm.c_prod_mat(dot(MDX, Cxy)), MDY) \
+                                              + dot(tsm.c_prod_mat(dot(MDY, Cxy)), MDX) \
+                                              + dot(tsm.c_prod_mat(Cyy), MDYY) \
+                                              - dot(tsm.c_prod_mat(Cxx), MDXX) \
     ##cxx
     jacobian[3*vecLen:4*vecLen, vecLen:2*vecLen] =  MMDXV
     ##cyy
@@ -325,8 +265,8 @@ def find_jacobian(x):
     jacobian[N*M:(N+1)*M, :] = 0
     ##u0
     jacobian[N*M:(N+1)*M, 0:vecLen] = \
-                            + Re*dot(prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
-                            + Re*dot(prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
+                            + Re*dot(tsm.c_prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
+                            + Re*dot(tsm.c_prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
                             + MDYYY[N*M:(N+1)*M, :]
     ##cxx
     jacobian[N*M:(N+1)*M, vecLen:2*vecLen] = 0
@@ -400,9 +340,10 @@ def mk_cheb_int():
     return integrator
     
 def newtonian_profile(PSI):
-"""
-given a Newtonian ECS profile, find the stresses.
-"""
+    """
+    given a Newtonian ECS profile, find the stresses.
+    This really doesn't look like it works...
+    """
 
     U = dot(MDX, PSI)
     V = - dot(MDY, PSI)
@@ -411,27 +352,27 @@ given a Newtonian ECS profile, find the stresses.
     BPFEQNS = zeros((3*vecLen, 3*vecLen), dtype='D')
     # Cxx eqn
     # Cxx
-    BPFEQNS[0:vecLen, 0:vecLen] = - VGRAD \
-                                + 2*prod_mat(dot(MDX,U)) - oneOverWi*II
+    BPFEQNS[0:vecLen, 0:vecLen] = Nu*MDX - VGRAD \
+                                + 2*tsm.c_prod_mat(dot(MDX,U)) - oneOverWi*II
     # Cyy
     BPFEQNS[0:vecLen, vecLen:2*vecLen] = 0
     # Cxy
-    BPFEQNS[0:vecLen, 2*vecLen:3*vecLen] = 2*prod_mat(dot(MDY, U))
+    BPFEQNS[0:vecLen, 2*vecLen:3*vecLen] = 2*tsm.c_prod_mat(dot(MDY, U))
     # Cyy eqn
     # Cxx
     BPFEQNS[vecLen:2*vecLen, 0:vecLen] = 0
     # Cyy
-    BPFEQNS[vecLen:2*vecLen, vecLen:2*vecLen] = - VGRAD - oneOverWi*II\
-                                              + 2.*prod_mat(dot(MDY, V))
+    BPFEQNS[vecLen:2*vecLen, vecLen:2*vecLen] = Nu*MDX - VGRAD - oneOverWi*II\
+                                              + 2.*tsm.c_prod_mat(dot(MDY, V))
     # Cxy
-    BPFEQNS[vecLen:2*vecLen, 2*vecLen:3*vecLen] = 2.*prod_mat(dot(MDX, V))
+    BPFEQNS[vecLen:2*vecLen, 2*vecLen:3*vecLen] = 2.*tsm.c_prod_mat(dot(MDX, V))
     #Cxy eqn
     # Cxx
-    BPFEQNS[2*vecLen:3*vecLen, 0:vecLen] = prod_mat(dot(MDX, V))
+    BPFEQNS[2*vecLen:3*vecLen, 0:vecLen] = tsm.c_prod_mat(dot(MDX, V))
     # Cyy 
-    BPFEQNS[2*vecLen:3*vecLen, vecLen:2*vecLen] = prod_mat(dot(MDY, U))
+    BPFEQNS[2*vecLen:3*vecLen, vecLen:2*vecLen] = tsm.c_prod_mat(dot(MDY, U))
     # Cxy
-    BPFEQNS[2*vecLen:3*vecLen, 2*vecLen:3*vecLen] = -VGRAD - oneOverWi*II 
+    BPFEQNS[2*vecLen:3*vecLen, 2*vecLen:3*vecLen] = Nu*MDX - VGRAD - oneOverWi*II 
 
     RHS = zeros(3*vecLen, dtype='D')
     RHS[0] = -oneOverWi
@@ -446,27 +387,199 @@ given a Newtonian ECS profile, find the stresses.
 
     return Cxx, Cyy, Cxy
 
+def x_independent_profile(PSI):
+    """
+     I think these are the equations for the x independent stresses from the base
+     profile.
+    """
+
+    Cyy = zeros(vecLen, dtype='complex')
+    Cyy[N*M] += 1.0
+    Cxy = zeros(vecLen, dtype='complex')
+    Cxy = Wi*dot(MDYY, PSI)
+    Cxx = zeros(vecLen, dtype='complex')
+    Cxx = 2*Wi*Wi*Cxy*Cxy
+    Cxx[N*M] += 1.0
+
+    return (Cxx, Cxy, Cyy)
+
+def line_search(solve_eq, find_jac, x, alpha=1e-4, NRtol=1e-6):
+    """
+    My implementation of the line search global quasi Newton Raphson method for
+    when you have a function to calculate the analytic jacobian. If you don't
+    have this just use the scipy Newton Krylov solver (has a finite difference
+    approximation to the jacobian built in).  This method only takes a Newton
+    step if this decreases the residual squared.  This function is known as the
+    master function f in this code. 
+
+    I have added the symmeterise function to make sure I don't screw with the
+    complex conjugation of the fourier modes. This is dirty, but it works!
+
+    Parameters:
+        alpha: sets the size of average rate of decrease of f should be at least
+               this fraction of the initial rate of decrease of f. Never greater
+               than 1. Ideally as low as possible. Numerical recipies thinks
+               1e-4 is fine.
+        NRtol: The stopping criteria on the L2 norm of the residual.
+    
+    WARNING: Could clash with global variables if you have been silly enough to
+    choose rubbish names.
+    """
+
+    print "\n\tBegin Newton line search method"
+    print "\t------------------------------------"
+    finCond = False
+    while not finCond:
+        # Calculate the newton step, dx
+        F_x0 = solve_eq(x)
+        j_x0 = find_jac(x)
+        dx = linalg.solve(j_x0, -F_x0)
+
+        # Define the master function
+        f_x0 = real(0.5*dot(conj(F_x0), F_x0))
+
+        slope_x0dx = real(-2*f_x0) #-dot(conj(F_x0), F_x0)
+
+        # Decide whether to take the Newton Step by Armijo line search method
+        # First initialise variables so that first iteration happens 
+        lam = 1 
+        lamPrev = 1  
+        f_xn = f_x0 + alpha*lam*slope_x0dx + 1
+        f_lam2Prev = 0 # Doesn't matter, will be set before it is used
+        f_lamPrev = 0 
+        counter = 0
+
+        # Now choose a lambda and see if it is good.
+        while f_xn >= f_x0 + alpha*lam*slope_x0dx:
+
+            if counter == 1:
+                # set lambda by a quadratic model for the residual master function f
+                lam = - slope_x0dx / 2*(f_xn - f_x0 - slope_x0dx)
+                #print "square model lambda =", lam
+                
+                # impose upper and lower bounds on lambda 
+                if lam > 0.5:
+                    lam = 0.5
+                if lam < 0.1:
+                    lam = 0.1
+
+            elif counter > 1:
+                # set lambda by a cubic model for the residual master function f
+                abmat = zeros((2,2))
+                abmat[0,0] = 1/(lamPrev*lamPrev)
+                abmat[0,1] = -1/(lam2Prev*lam2Prev)
+                abmat[1,0] = -lam2Prev/(lamPrev*lamPrev)
+                abmat[1,1] = lamPrev/(lam2Prev*lam2Prev)
+
+                f3vec = zeros(2)
+                f3vec[0] = f_lamPrev - f_x0 - slope_x0dx*lamPrev
+                f3vec[1] = f_lam2Prev - f_x0 - slope_x0dx*lam2Prev
+
+                abvec = (1./(lamPrev-lam2Prev)) * dot(abmat, f3vec)
+                aaa = abvec[0]
+                bbb = abvec[1]
+                lam = (- bbb + sqrt(bbb**2 - 3*aaa*slope_x0dx)) / 3*aaa
+
+                # impose upper and lower bounds on lambda 
+                if lam > 0.5*lamPrev:
+                    lam = 0.5*lamPrev
+                if lam < 0.1*lamPrev:
+                    lam = 0.1*lamPrev
+
+                #print "cubic model lambda", lam
+
+                if lam < 1e-6:
+                    print " loop counter of last step = ", counter-1
+                    print "step too small, take full Newton step and hope for the best."
+                    lam = 1
+                    break
+
+            # calculate the residual and master function so we can see if the
+            # step was a good one.
+            F_xn = solve_eq(x + lam*dx)
+            f_xn = real(0.5*dot(conj(F_xn), F_xn))
+            #print """   |F_xn| = """, linalg.norm(F_xn) 
+
+            # update old values for cubic method
+            lam2Prev = lamPrev
+            lamPrev = lam
+            f_lam2Prev = f_lamPrev
+            f_lamPrev = f_xn
+
+            counter += 1
+        
+
+        # change x to the value at the step we just took
+        x = x + lam*dx
+
+        # Extra symmerterisation step
+        x[0:vecLen] = symmetrise(x[0:vecLen])
+        x[vecLen:2*vecLen] = symmetrise(x[vecLen:2*vecLen])
+        x[2*vecLen:3*vecLen] = symmetrise(x[2*vecLen:3*vecLen])
+        x[3*vecLen:4*vecLen] = symmetrise(x[3*vecLen:4*vecLen])
+        
+        # Print norm and check if we can exit yet.
+        L2 = linalg.norm(F_xn)
+        print """|F_xn| = {0:10.5g}, |dx| = {1:10.5g}, lambda = {2}""".format(
+            L2, linalg.norm(dx), lam)
+
+        # Quit if L2 norm is getting huge
+        if L2 > 1e50:
+            print "Error: Shooting off to infinity!"
+            exit(1)
+
+        if L2 < NRtol:
+            print "Solution found!"
+            finCond = True
+
+    return x
+
+def old_newton (xVec):
+    print "\n\tBegin Newton-Rhaphson"
+    print "\t------------------------------------"
+    print "\t |F_x0|: \t|dx|:" 
+    while True:
+
+        f_x0 = solve_eq(xVec)
+        J_x0 = find_jacobian(xVec)
+        dx = linalg.solve(J_x0, -f_x0)
+
+        L2norm = linalg.norm(f_x0,2)
+        print "\t {L2norm} \t{dx}".format(L2norm=L2norm, dx=linalg.norm(dx))
+
+        if (L2norm < NRdelta): 
+            break
+
+        xVec = xVec + dx
+
+        xVec[0:vecLen] = symmetrise(xVec[0:vecLen])
+        xVec[vecLen:2*vecLen] = symmetrise(xVec[vecLen:2*vecLen])
+        xVec[2*vecLen:3*vecLen] = symmetrise(xVec[2*vecLen:3*vecLen])
+        xVec[3*vecLen:4*vecLen] = symmetrise(xVec[3*vecLen:4*vecLen])
+
+    return xVec
+
 #MAIN
 
 
 # setup the initial conditions 
 
 vecLen = M*(2*N+1)  
-print "Settings:"
-print """------------------------------------
-N \t= {N}
-M \t= {M}              
-Wi \t= {Wi}        
-Re \t= {Re}         
-beta \t= {beta}
-kx \t= {kx}
-------------------------------------
+print """
+\tSettings:
+\t------------------------------------
+\tN \t= {N}
+\tM \t= {M}              
+\tWi \t= {Wi}        
+\tRe \t= {Re}         
+\tbeta \t= {beta}
+\tkx \t= {kx}
+\t------------------------------------
         """.format(N=N, M=M, kx=kx, Re=Re, beta=beta, Wi=Wi)
 
 print "The length of a vector is: ", vecLen
 print "The size of the jacobian Matrix is: {x} by {y}".format(x=(4*vecLen+1), y=
                                                              (4*vecLen+1))
-NuIndx = M - 5           #Choose a high Fourier mode
 oneOverWi = 1. / Wi
 # Set the oneOverC function: 1/2 for m=0, 1 elsewhere:
 oneOverC = ones(M)
@@ -480,16 +593,16 @@ almostZero = zeros(M, dtype='D') + 1e-14
 
 # Useful operators 
 
-MDY = mk_diff_y()
+MDY = tsm.mk_diff_y()
 MDYY = dot(MDY,MDY)
 MDYYY = dot(MDY,MDYY)
-MDX = mk_diff_x()
+MDX = tsm.mk_diff_x()
 MDXX = dot(MDX, MDX)
 MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
 BIHARM = dot(LAPLAC, LAPLAC)
 
-INTY = mk_cheb_int()
+INTY = tsm.mk_cheb_int()
 
 #Identity
 II = eye(vecLen, vecLen, dtype='complex')
@@ -499,7 +612,7 @@ BTOP = ones(M)
 BBOT = ones(M)
 BBOT[1:M:2] = -1
 
-singleDY = mk_single_diffy()
+singleDY = tsm.mk_single_diffy()
 DERIVTOP = zeros((M), dtype='complex')
 DERIVBOT = zeros((M), dtype='complex')
 for j in range(M):
@@ -521,31 +634,25 @@ del j
 #PSI[N*M+3] += -1.0/12.0
 #Nu  = 0.35
 
-inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
-PSI, Nu = pickle.load(inFp)
-
-Cxx, Cyy, Cxy = newtonian_profile(PSI)
-
-#Cyy = zeros(vecLen, dtype='complex')
-#Cyy[N*M] += 1.0
-#Cxy = zeros(vecLen, dtype='complex')
-#Cxy = Wi*dot(MDYY, PSI)
-#Cxx = zeros(vecLen, dtype='complex')
-#Cxx = 2*Wi*Wi*Cxy*Cxy
-#Cxx[N*M] += 1.0
+#inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
+#PSI, Nu = pickle.load(inFp)
 
 
-#PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open(inFileName, 'r'))
+PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
 
-#PSI = increase_resolution(PSIOld)
-#Cxx = increase_resolution(CxxOld)
-#Cyy = increase_resolution(CyyOld)
-#Cxy = increase_resolution(CxyOld)
+PSI = increase_resolution(PSIOld)
+Cxx = increase_resolution(CxxOld)
+Cyy = increase_resolution(CyyOld)
+Cxy = increase_resolution(CxyOld)
 
-#PSI[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = PSItmp[0:M*(2*NOld+1)]
-#Cxx[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = Cxxtmp[0:M*(2*NOld+1)]
-#Cyy[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = Cyytmp[0:M*(2*NOld+1)]
-#Cxy[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = Cxytmp[0:M*(2*NOld+1)]
+# Effort to write a function to return newtonian stresses given a profile don't
+# think it works.
+#Cxx, Cyy, Cxy = newtonian_profile(PSI)
+
+# Stresses from the x independent laminar flow
+#Cxx, Cyy, Cxy = x_independent_profile(PSI)
+
+#pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open("Newtonian_profile_test.pickle", 'w'))
 
 xVec = zeros((4*vecLen + 1), dtype='complex')
 xVec[0:vecLen]          = PSI
@@ -560,39 +667,35 @@ SPEEDCONDITION = zeros(M, dtype = 'complex')
 for m in range(M):
     SPEEDCONDITION[m] = cos(m*arccos(y_star)) 
 
-print "Begin Newton-Rhaphson"
-print "------------------------------------"
-print "L2norm:"
-while True:
-    f_x0 = solve_eq(xVec)
-    J_x0 = find_jacobian(xVec)
-    dx = linalg.solve(J_x0, -f_x0)
-    xVec = xVec + dx
-    L2norm = linalg.norm(f_x0,2)
-    print "\t {L2norm}".format(L2norm=L2norm)
-    if (L2norm < NRdelta): 
-        break
-    xVec[0:vecLen] = symmetrise(xVec[0:vecLen])
-    xVec[vecLen:2*vecLen] = symmetrise(xVec[vecLen:2*vecLen])
-    xVec[2*vecLen:3*vecLen] = symmetrise(xVec[2*vecLen:3*vecLen])
-    xVec[3*vecLen:4*vecLen] = symmetrise(xVec[3*vecLen:4*vecLen])
+
+inv_jac = eye(4*vecLen+1, 4*vecLen +1) #linalg.inv(find_jacobian(xVec))
+
+#xVec = old_newton(xVec)
+
+#xVec = line_search(solve_eq, find_jacobian, xVec)
+
+
+xVec = optimize.newton_krylov(solve_eq, xVec, inner_M=inv_jac, verbose=True)
 
 PSI = xVec[0:vecLen] 
 Cxx = xVec[1*vecLen:2*vecLen] 
 Cyy = xVec[2*vecLen:3*vecLen] 
 Cxy = xVec[3*vecLen:4*vecLen]
 Nu  = xVec[4*vecLen]
-print "------------------------------------\n"
-print " Nu = ", Nu
+
+print "\t------------------------------------\n"
+print "\tNu = ", Nu
+
 U = dot(MDY, PSI)
 V = -dot(MDX, PSI)
-MMU = prod_mat(U)
-MMV = prod_mat(V)
+MMU = tsm.c_prod_mat(U)
+MMV = tsm.c_prod_mat(V)
 U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
 assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
 KE0 = 0.5*real(dot(INTY, U0sq))
-print 'KE0 = ', KE0
-print "norm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
+
+print '\tKE0 = ', KE0
+print "\tnorm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
 
 if KE0 > 1e-4:
     pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
