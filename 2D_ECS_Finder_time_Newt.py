@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed 28 May 13:57:48 2014
+#   Last modified: Wed 28 May 14:12:20 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -38,8 +38,8 @@ assert totTime % dt, "non-integer number of time steps!"
 
 amp = 0.015
 
-kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': totTime}
-baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': totTime, 'dt':dt}
+baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}-dt{dt}.pickle".format(**kwargs)
 outFileName  = "psi{0}".format(baseFileName)
 outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
 outFileNameTime = "series-PSI{0}".format(baseFileName)
@@ -274,10 +274,12 @@ for tindx, currTime in enumerate(timesList):
 
     Usq = dot(MMU, U) + dot(MMV, V)
     KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
-    KE0 = real(KE0)
+    # rescale by KE of base flow
+    KE0 = (8./15.)*real(KE0)
+
 
     Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
-    KE1 = linalg.norm(0.5*dot(INTY, Usq1))
+    KE1 = (8./15.)*linalg.norm(0.5*dot(INTY, Usq1))
 
     dataout = {'t':float(currTime-dt), 'KE0':float(KE0), 'KE1':float(KE1)}
     
