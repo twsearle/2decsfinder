@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed 28 May 14:12:20 2014
+#   Last modified: Wed 28 May 2014 14:25:49 BST
 #
 #-----------------------------------------------------------------------------
 
@@ -17,6 +17,7 @@ from scipy import *
 from scipy import linalg
 import cPickle as pickle
 import ConfigParser
+import argparse
 import TobySpectralMethods as tsm
 
 # SETTINGS---------------------------------------------------------------------
@@ -24,14 +25,39 @@ import TobySpectralMethods as tsm
 config = ConfigParser.RawConfigParser()
 fp = open('config.cfg')
 config.readfp(fp)
-N = config.getint('General', 'N')
-M = config.getint('General', 'M')
-Re = config.getfloat('General', 'Re')
-kx = config.getfloat('General', 'kx')
-dt = config.getfloat('Time Iteration', 'dt')
-totTime = config.getfloat('Time Iteration', 'totTime')
-numFrames = config.getint('Time Iteration', 'numFrames')
+cfgN = config.getint('General', 'N')
+cfgM = config.getint('General', 'M')
+cfgRe = config.getfloat('General', 'Re')
+cfgkx = config.getfloat('General', 'kx')
+cfgdt = config.getfloat('Time Iteration', 'dt')
+cfgtotTime = config.getfloat('Time Iteration', 'totTime')
+cfgnumFrames = config.getint('Time Iteration', 'numFrames')
 fp.close()
+
+argparser = argparse.ArgumentParser()
+argparser.add_argument("-N", type=int, default=cfgN, 
+                help='Override Number of Fourier modes given in the config file')
+argparser.add_argument("-M", type=int, default=cfgM, 
+                help='Override Number of Chebyshev modes in the config file')
+argparser.add_argument("-Re", type=float, default=cfgRe, 
+                help="Override Reynold's number in the config file") 
+argparser.add_argument("-kx", type=float, default=cfgkx,
+                help='Override kx from the config file')
+argparser.add_argument("-dt", type=float, default=cfgdt,
+                help='Override time step from the config file')
+argparser.add_argument("-totTime", type=float, default=cfgtotTime,
+                help='Override total time from the config file')
+argparser.add_argument("-numFrames", type=int, default=cfgnumFrames,
+                help='Override number of frames to save from the config file')
+
+args = argparser.parse_args()
+N = args.N 
+M = args.M
+Re = args.Re
+kx = args.kx
+dt = args.dt
+totTime = args.totTime
+numFrames = args.numFrames
 
 numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
