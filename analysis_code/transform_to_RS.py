@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------
 #   Chebyshev/Fourier to Real space transformation code   
 #
-#   Last modified: Wed 05 Feb 2014 16:15:38 GMT
+#   Last modified: Wed 28 May 2014 17:20:10 BST
 #
 # ------------------------------------------------------------------------------
 
@@ -31,8 +31,8 @@ fp.close()
 numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 
-kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
-baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time':totTime, 'dt':dt}
+baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}-dt{dt}.pickle".format(**kwargs)
 inFileName = "series-PSI{0}".format(baseFileName)
 outFileName = "RS-series-PSI{0}".format(baseFileName)
 

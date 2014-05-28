@@ -2,7 +2,7 @@
 #   colour map plotter for 2D coherent state finder
 #   animated.
 #
-#   Last modified: Thu  5 Dec 13:58:11 2013
+#   Last modified: Wed 28 May 2014 17:21:29 BST
 #
 #------------------------------------------------------------------------------
 
@@ -36,8 +36,8 @@ fp.close()
 numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 
-kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx, 'time': numTimeSteps*dt }
-baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}.pickle".format(**kwargs)
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx, 'time': numTimeSteps*dt, 'dt':dt }
+baseFileName  = "-N{N}-M{M}-Re{Re}-kx{kx}-t{time}-dt{dt}.pickle".format(**kwargs)
 inFileName = "RS-series-PSI{0}".format(baseFileName)
 outFileName = "movie{0}.mp4".format(baseFileName[:-7])
 
