@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------
 #   Chebyshev/Fourier to Real space transformation code   
 #
-#   Last modified: Tue  3 Jun 14:04:57 2014
+#   Last modified: Tue  3 Jun 16:34:02 2014
 #
 # ------------------------------------------------------------------------------
 
@@ -68,7 +68,7 @@ def Fourier_cheb_transform(vec, x_points, y_points) :
 def faster_FC_transform(vecin) :
     vecout = np.zeros(numXs*numYs, dtype='D')
 
-    RStransform.rstransform(PsiSeries[i], vecout, N, M, numXs, numYs, kx)
+    RStransform.rstransform(vecin, vecout, N, M, numXs, numYs, kx)
 
     # Reshape back to (xindx, yindx) then transpose to (yindx, xindx) (because)
     vecout = reshape(vecout, (numXs, numYs)).T
@@ -117,11 +117,11 @@ outFp = open(outFileName, 'w')
 for i in range(len(PsiSeries)):
     
     #tmparr = Fourier_cheb_transform(PsiSeries[i], x_points, y_points)
+
     tmppsi = faster_FC_transform(PsiSeries[i])
-    tmpxx  = faster_FC_transform(xxSeries[i])
+    tmpxx = faster_FC_transform(xxSeries[i])
     tmpyy = faster_FC_transform(yySeries[i])
     tmpxy = faster_FC_transform(xySeries[i])
-
 
     #print allclose(tmparr, tmparr2, atol=1e-4)
     pickle.dump((real(tmppsi), real(tmpxx), real(tmpyy), real(tmpxy)), outFp)
