@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed 28 May 2014 14:25:49 BST
+#   Last modified: Thu 29 May 13:37:54 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -301,11 +301,11 @@ for tindx, currTime in enumerate(timesList):
     Usq = dot(MMU, U) + dot(MMV, V)
     KE0 = 0.5*dot(INTY, Usq[N*M:(N+1)*M])
     # rescale by KE of base flow
-    KE0 = (8./15.)*real(KE0)
+    KE0 = (15/8.)*real(KE0)
 
 
     Usq1 = Usq[(N-1)*M:N*M] + Usq[(N+1)*M:(N+2)*M]
-    KE1 = (8./15.)*linalg.norm(0.5*dot(INTY, Usq1))
+    KE1 = (15./8.)*linalg.norm(0.5*dot(INTY, Usq1))
 
     dataout = {'t':float(currTime-dt), 'KE0':float(KE0), 'KE1':float(KE1)}
     

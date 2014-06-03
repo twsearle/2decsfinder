@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Newtonian Poiseuille flow time iteration
 #
-#   Last modified: Wed  5 Feb 15:29:21 2014
+#   Last modified: Mon  2 Jun 17:40:11 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -15,6 +15,7 @@ from scipy import *
 from scipy import linalg
 import cPickle as pickle
 import ConfigParser
+import TobySpectralMethods as tsm
 
 # SETTINGS---------------------------------------------------------------------
 
@@ -39,113 +40,115 @@ assert Wi != 0.0, "cannot have Wi = 0!"
 
 NOld = N 
 MOld = M
-kwargs = {'N': N, 'M': M, 'Re': Re,'Wi': Wi, 'beta': beta, 'kx': kx,'time': totTime}
-baseFileName  = "-N{N}-M{M}-Re{Re}-Wi{Wi}-b{beta}-kx{kx}-t{time}.pickle".format(**kwargs)
+kwargs = {'N': N, 'M': M, 'Re': Re,'Wi': Wi, 'beta': beta, 'kx': kx,'time':
+          totTime, 'dt':dt }
+baseFileName  = "-N{N}-M{M}-kx{kx}-Re{Re}-b{beta}-Wi{Wi}-dt{dt}.pickle".format(**kwargs)
 outFileName  = "pf{0}".format(baseFileName)
 outFileNameTrace = "trace{0}.dat".format(baseFileName[:-7])
 outFileNameTime = "series-pf{0}".format(baseFileName)
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(N=NOld, M=MOld, 
                                                         kx=kx, Re=Re)
 
+tsm.initTSM(N_=N, M_=M, kx_=kx)
 
 # -----------------------------------------------------------------------------
 
 # FUNCTIONS
-def mk_single_diffy():
-    """Makes a matrix to differentiate a single vector of Chebyshev's, 
-    for use in constructing large differentiation matrix for whole system"""
-    # make matrix:
-    mat = zeros((M, M), dtype='d')
-    for m in range(M):
-        for p in range(m+1, M, 2):
-            mat[m,p] = 2*p*oneOverC[m]
 
-    return mat
+def base_stress_profile(PSI):
+    """
+    given a Newtonian ECS profile, find the stresses. Added a finer grid to
+    solve this then switch back.  This really doesn't look like it works...
+    """
 
-def mk_diff_y():
-    """Make the matrix to differentiate a velocity vector wrt y."""
-    D = mk_single_diffy()
-    MDY = zeros( (vecLen,  vecLen) )
-     
-    for cheb in range(0,vecLen,M):
-        MDY[cheb:cheb+M, cheb:cheb+M] = D
-    del cheb
-    return MDY
+    Nhi = 40
+    Mhi = 30
+    PSI = increase_resolution(PSI,N,M,Nhi,Mhi)
+    vecLen2 = (2*Nhi+1)*Mhi
 
-def mk_diff_x():
-    """Make matrix to do fourier differentiation wrt x."""
-    MDX = zeros( (vecLen, vecLen), dtype='complex')
+    tsm.initTSM(N_=Nhi, M_=Mhi, kx_=kx)
+    MDY_ = tsm.mk_diff_y()
+    MDX_ = tsm.mk_diff_x()
+    II_ = zeros((vecLen2, vecLen2), dtype='D')
 
-    n = -N
-    for i in range(0, vecLen, M):
-        MDX[i:i+M, i:i+M] = eye(M, M, dtype='complex')*n*kx*1.j
-        n += 1
-    del n, i
-    return MDX
+    U = dot(MDX_, PSI)
+    V = - dot(MDY_, PSI)
+    VGRAD_ = dot(U,MDX_) + dot(V,MDY_)
 
-def cheb_prod_mat(velA):
-    """Function to return a matrix for left-multiplying two Chebychev vectors"""
+    BPFEQNS = zeros((3*vecLen2, 3*vecLen2), dtype='D')
+    # Cxx eqn
+    # Cxx
+    BPFEQNS[0:vecLen2, 0:vecLen2] = Nu*MDX_ - VGRAD_ \
+                                + 2*tsm.c_prod_mat(dot(MDX_,U)) - oneOverWi*II_
+    # Cyy
+    BPFEQNS[0:vecLen2, vecLen2:2*vecLen2] = 0
+    # Cxy
+    BPFEQNS[0:vecLen2, 2*vecLen2:3*vecLen2] = 2*tsm.c_prod_mat(dot(MDY_, U))
+    # Cyy eqn
+    # Cxx
+    BPFEQNS[vecLen2:2*vecLen2, 0:vecLen2] = 0
+    # Cyy
+    BPFEQNS[vecLen2:2*vecLen2, vecLen2:2*vecLen2] = Nu*MDX_ - VGRAD_\
+                                     -oneOverWi*II_ + 2.*tsm.c_prod_mat(dot(MDY_, V))
+    # Cxy
+    BPFEQNS[vecLen2:2*vecLen2, 2*vecLen2:3*vecLen2] = 2.*tsm.c_prod_mat(dot(MDX_, V))
+    #Cxy eqn
+    # Cxx
+    BPFEQNS[2*vecLen2:3*vecLen2, 0:vecLen2] = tsm.c_prod_mat(dot(MDX_, V))
+    # Cyy 
+    BPFEQNS[2*vecLen2:3*vecLen2, vecLen2:2*vecLen2] = tsm.c_prod_mat(dot(MDY_, U))
+    # Cxy
+    BPFEQNS[2*vecLen2:3*vecLen2, 2*vecLen2:3*vecLen2] = Nu*MDX_ - VGRAD_ \
+            -oneOverWi*II_ 
 
-    D = zeros((M, M), dtype='complex')
+    RHS = zeros(3*vecLen2, dtype='D')
+    RHS[0] = -oneOverWi
+    RHS[vecLen2] = -oneOverWi
+    RHS[2*vecLen2:3*vecLen2] = 0
 
-    for n in range(M):
-        for m in range(-M+1,M):     # Bottom of range is inclusive
-            itr = abs(n-m)
-            if (itr < M):
-                D[n, abs(m)] += 0.5*oneOverC[n]*CFunc[itr]*CFunc[abs(m)]*velA[itr]
-    del m, n, itr
-    return D
+    soln = linalg.solve(BPFEQNS, RHS)
 
-def prod_mat(velA):
-    """Function to return a matrix ready for the left dot product with another
-    velocity vector"""
-    MM = zeros((vecLen, vecLen), dtype='complex')
+    Cxx = soln[0:vecLen2]
+    Cyy = soln[vecLen2:2*vecLen2]
+    Cxy = soln[2*vecLen2:3*vecLen2]
 
-    #First make the middle row
-    midMat = zeros((M, vecLen), dtype='complex')
-    for n in range(2*N+1):       # Fourier Matrix is 2*N+1 cheb matricies
-        yprodmat = cheb_prod_mat(velA[n*M:(n+1)*M])
-        endind = 2*N+1-n
-        midMat[:, (endind-1)*M:endind*M] = yprodmat
-    del n
+    tsm.initTSM(N_=N, M_=M, kx_=kx)
 
-    #copy matrix into MM, according to the matrix for spectral space
-    # top part first
-    for i in range(0, N):
-        MM[i*M:(i+1)*M, :] = column_stack((midMat[:, (N-i)*M:], zeros((M, (N-i)*M))) )
-    del i
-    # middle
-    MM[N*M:(N+1)*M, :] = midMat
-    # bottom 
-    for i in range(0, N):
-        MM[(i+N+1)*M:(i+2+N)*M, :] = column_stack((zeros((M, (i+1)*M)), midMat[:, :(2*N-i)*M] ))
-    del i
+    print 'psi shape', shape(PSI)
 
-    return MM
+    PSI = decrease_resolution(PSI,Nhi,Mhi,N,M)
+    Cxx = decrease_resolution(Cxx,Nhi,Mhi,N,M)
+    Cyy = decrease_resolution(Cyy,Nhi,Mhi,N,M)
+    Cxy = decrease_resolution(Cxy,Nhi,Mhi,N,M)
 
-def increase_resolution(vec):
+    print 'psi shape', shape(PSI)
+
+    return Cxx, Cyy, Cxy
+
+
+def increase_resolution(vec, NOld, MOld, N_, M_):
     """increase resolution from Nold, Mold to N, M and return the higher res
     vector"""
-    highMres = zeros((2*NOld+1)*M, dtype ='complex')
+    highMres = zeros((2*NOld+1)*M_, dtype ='complex')
     for n in range(2*NOld+1):
-        highMres[n*M:n*M + MOld] = vec[n*MOld:(n+1)*MOld]
+        highMres[n*M_:n*M_ + MOld] = vec[n*MOld:(n+1)*MOld]
     del n
-    fullres = zeros(vecLen, dtype='complex')
-    fullres[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = highMres[0:M*(2*NOld+1)]
+    fullres = zeros((2*N_+1)*M_, dtype='complex')
+    fullres[(N_-NOld)*M_:(N_-NOld)*M_ + M_*(2*NOld+1)] = highMres[0:M_*(2*NOld+1)]
     return fullres
 
-def decrease_resolution(vec):
+def decrease_resolution(vec, NOld, MOld, N_, M_):
     """ 
     decrease both the N and M resolutions
     """
 
-    lowMvec = zeros((2*NOld+1)*M, dtype='complex')
+    lowMvec = zeros((2*NOld+1)*M_, dtype='complex')
     for n in range(2*NOld+1):
-        lowMvec[n*M:(n+1)*M] = vec[n*MOld:n*MOld + M]
+        lowMvec[n*M_:(n+1)*M_] = vec[n*MOld:n*MOld + M_]
     del n
 
-    lowNMvec = zeros((2*N+1)*M, dtype='D')
-    lowNMvec = lowMvec[(NOld-N)*M:(NOld-N)*M + (2*N+1)*M]
+    lowNMvec = zeros((2*N_+1)*M_, dtype='D')
+    lowNMvec = lowMvec[(NOld-N_)*M_:(NOld-N_)*M_ + (2*N_+1)*M_]
 
     return lowNMvec
 
@@ -156,64 +159,51 @@ def mk_cheb_int():
     del m
     return integrator
 
-def eplct_euler_step(CxxOld, CyyOld, CxyOld, dt):
-    
-    # Calculate polymeric stress components
-    TxxOld = oneOverWi*CxxOld
-    TxxOld[N*M] += -oneOverWi
-    TyyOld = oneOverWi*CyyOld
-    TyyOld[N*M] += -oneOverWi
-    TxyOld = oneOverWi*CxyOld
+def iplct_euler_step(stressVec, dt):
 
-    MMCXX = prod_mat(CxxOld)
-    MMCYY = prod_mat(CyyOld)
-    MMCXY = prod_mat(CxyOld)
+    CxxOld = stressVec[0:vecLen]
+    CyyOld = stressVec[vecLen:2*vecLen]
+    CxyOld = stressVec[2*vecLen:3*vecLen]
 
-    # CXX
-    CxxNew = CxxOld + 2*dt*dot(MMCXX, dot(MDX, U)) + 2*dt*dot(MMCXY, dot(MDX, V))\
-         - dt*dot(VGRAD, CxxOld) - dt*TxxOld 
-    
-    # CYY
-    CyyNew = CyyOld + 2*dt*dot(MMCXY, dot(MDY, U)) + 2*dt*dot(MMCYY, dot(MDY, V))\
-         - dt*dot(VGRAD, CyyOld) - dt*TyyOld
+    MMCXX = tsm.c_prod_mat(CxxOld)
+    MMCYY = tsm.c_prod_mat(CyyOld)
+    MMCXY = tsm.c_prod_mat(CxyOld)
 
-    # CXY
-    CxyNew = CxyOld + dt*dot(MMCXX, dot(MDY, U)) + dt*dot(MMCYY, dot(MDX, V))\
-         - dt*dot(VGRAD, CxyOld) - dt*TxyOld
-
-    return (CxxNew, CyyNew, CxyNew)
-
-def iplct_euler_step(CxxOld, CyyOld, CxyOld, dt):
-
-    MMCXX = prod_mat(CxxOld)
-    MMCYY = prod_mat(CyyOld)
-    MMCXY = prod_mat(CxyOld)
+    SVNew = zeros(3*vecLen, dtype='D')
 
     # Cxx via backwards Euler
-    AAA = 2*dot(MMCXY, dot(MDX, V)) + oneOverWi*constOneVec
-    MMM = VGRAD + prod_mat(2*dot(MDX, U)) - oneOverWi*II
+    AAA = 2*dot(MMCXY, dot(MDY, U)) + oneOverWi*constOneVec
+    MMM = VGRAD + tsm.c_prod_mat(2*dot(MDX, U)) - oneOverWi*II
     CxxOp = II - dt*MMM
-    CxxNew = linalg.solve(CxxOp, CxxOld + AAA*dt)
+    SVNew[:vecLen] = linalg.solve(CxxOp, CxxOld + AAA*dt)
 
     # Cyy via backwards Euler
-    AAA = 2*dot(MMCXY, dot(MDY, U)) + oneOverWi*constOneVec
-    MMM = VGRAD + 2*prod_mat(dot(MDY, V)) - oneOverWi*II
+    AAA = 2*dot(MMCXY, dot(MDX, U)) + oneOverWi*constOneVec
+    MMM = VGRAD + 2*tsm.c_prod_mat(dot(MDY, V)) - oneOverWi*II
     CyyOp = II - dt*MMM
-    CyyNew = linalg.solve(CyyOp, CyyOld + AAA*dt)
+    SVNew[vecLen:2*vecLen] = linalg.solve(CyyOp, CyyOld + AAA*dt)
 
     # Cxy via backwards Euler
-    AAA = dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))
+    AAA = dot(MMCXX, dot(MDX, V)) + dot(MMCYY, dot(MDY, U))
     MMM = VGRAD - oneOverWi*II
     CxyOp = II - dt*MMM
-    CxyNew = linalg.solve(CxyOp, CxyOld + AAA*dt)
+    SVNew[2*vecLen:3*vecLen] = linalg.solve(CxyOp, CxyOld + AAA*dt)
 
-    return (CxxNew, CyyNew, CxyNew)
+    return SVNew
 
-def k1_calc(Cvec, dt):
+def solve_eqns(stressVec):
+    """
+    Returns the time derivative of the stresses given the current state of the
+    flow.
+    """
 
-    MMCXX = prod_mat(CxxOld)
-    MMCYY = prod_mat(CyyOld)
-    MMCXY = prod_mat(CxyOld)
+    CxxOld = stressVec[0:vecLen]
+    CyyOld = stressVec[vecLen:2*vecLen]
+    CxyOld = stressVec[2*vecLen:3*vecLen]
+
+    MMCXX = tsm.c_prod_mat(CxxOld)
+    MMCYY = tsm.c_prod_mat(CyyOld)
+    MMCXY = tsm.c_prod_mat(CxyOld)
 
     # Calculate polymeric stress components
     TxxOld = oneOverWi*CxxOld
@@ -221,75 +211,71 @@ def k1_calc(Cvec, dt):
     TyyOld = oneOverWi*CyyOld
     TyyOld[N*M] += -oneOverWi
     TxyOld = oneOverWi*CxyOld
-
-    # k1 = hf(x)
-    dCxxdt = 2*dot(MMCXX, dot(MDX, U)) + 2*dot(MMCXY, dot(MDX, V))\
-            - dot(VGRAD, CxxOld) - TxxOld 
-    dCyydt = + 2*dot(MMCXY, dot(MDY, U)) + 2*dot(MMCYY, dot(MDY, V))\
-            - dot(VGRAD, CyyOld) - TyyOld
-    dCxydt = dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))\
-            - dot(VGRAD, CxyOld) - TxyOld
     
-    k1Vec = zeros((3*(2*N+1)*M), dtype='D')
-    k1Vec[0:(2*N+1)*M] = dt*dCxxdt
-    k1Vec[(2*N+1)*M:2*(2*N+1)*M]  = dt*dCyydt
-    k1Vec[2*(2*N+1)*M:]  = dt*dCxydt
+    SVNew = zeros(3*vecLen, dtype='D')
 
-    return k1Vec
+    #dCxxdt 
+    SVNew[:vecLen] = 2*dot(MMCXX, dot(MDX, U)) + 2*dot(MMCXY, dot(MDY, U))\
+                     - dot(VGRAD, CxxOld) - TxxOld 
+    #dCyydt
+    SVNew[vecLen:2*vecLen] = + 2*dot(MMCXY, dot(MDX, V)) \
+                             + 2*dot(MMCYY, dot(MDY, V)) \
+                             - dot(VGRAD, CyyOld) - TyyOld
+    #dCxydt
+    SVNew[2*vecLen:3*vecLen] = dot(MMCXX, dot(MDX, V)) \
+                              + dot(MMCYY, dot(MDY, U))\
+                              - dot(VGRAD, CxyOld) - TxyOld
     
-def k2_calc(CVec, dt, k1Vec):
-    # k2 = h f(y(x) + 1/2 k1, t + dt/2)
-    Cxxk1 = k1Vec[0:vecLen]
-    Cyyk1 = k1Vec[vecLen:2*vecLen]
-    Cxyk1 = k1Vec[2*vecLen:]
+    return SVNew
 
-    dt = dt/2.0
-    Cxxk2old = CxxOld + 0.5*Cxxk1
-    Cyyk2old = CyyOld + 0.5*Cyyk1
-    Cxyk2old = CxyOld + 0.5*Cxyk1
+def rk4_step(x_old, dt):
+    """ 
+    Numerical recipies Runge-Kutta fourth order, where the derivative has no
+    time dependence. 
+    """
 
-    MMCXX = prod_mat(Cxxk2old)
-    MMCYY = prod_mat(Cyyk2old)
-    MMCXY = prod_mat(Cxyk2old)
+    k1 = dt*solve_eqns(x_old) 
+    k2 = dt*solve_eqns(x_old+k1/2.)
+    k3 = dt*solve_eqns(x_old+k2/2.)
+    k4 = dt*solve_eqns(x_old+k3)
 
-    # Calculate polymeric stress components
-    TxxOld = oneOverWi*(Cxxk2old)
-    TxxOld[N*M] += -oneOverWi
-    TyyOld = oneOverWi*(Cyyk2old)
-    TyyOld[N*M] += -oneOverWi
-    TxyOld = oneOverWi*(Cxyk2old)
+    x_new = x_old + k1/6. + k2/3. + k3/3. + k4/6.
 
-    Cxxk2 = dt*(2*dot(MMCXX, dot(MDX, U)) + 2*dot(MMCXY, dot(MDX, V))\
-            - dot(VGRAD, Cxxk2old) - TxxOld)
-    Cyyk2 = dt*(2*dot(MMCXY, dot(MDY, U)) + 2*dot(MMCYY, dot(MDY, V))\
-            - dot(VGRAD, Cyyk2old) - TyyOld)
-    Cxyk2 = dt*(dot(MMCXX, dot(MDY, U)) + dot(MMCYY, dot(MDX, V))\
-            - dot(VGRAD, Cxyk2old) - TxyOld)
-    
-    return (Cxxk2, Cyyk2, Cxyk2)
+    return x_new 
 
-def RK2_step(CxxOld, CyyOld, CxyOld, dt):
-    # Do rk2 method. Update all the stresses so that k2 depends on k1 of all
-    # stresses
-    CVec = concatenate((CxxOld, CyyOld, CxyOld))
-    # k1
+def rk5_step(x_old, dt):
+    """ 
+    Numerical recipies Runge-Kutta Cash-Karp.
+    """
 
-    k1Vec = k1_calc(CVec, dt)
+    b21 = 1./5.
+    b31 = 3./40.
+    b32 = 9./40.
+    b41 = 3./10.
+    b42 = -9./10.
+    b43 = 6./5.
+    b51 = -11./54.
+    b52 = 5./2.
+    b53 = -70./27.
+    b54 = 35./27.
+    b61 = 1631./55296.
+    b62 = 175./512.
+    b63 = 575./13824.
+    b64 = 44275./110592.
+    b65 = 253./4096.
 
-    # k2
+    k1 = dt*solve_eqns(x_old) 
+    k2 = dt*solve_eqns(x_old + b21*k1)
+    k3 = dt*solve_eqns(x_old + b31*k1 + b32*k2)
+    k4 = dt*solve_eqns(x_old + b41*k1 + b42*k2 + b43*k3)
+    k5 = dt*solve_eqns(x_old + b51*k1 + b52*k2 + b53*k3 + b54*k4)
+    k6 = dt*solve_eqns(x_old + b61*k2 + b62*k2 + b63*k3 + b64*k4)
 
-    (Cxxk2, Cyyk2, Cxyk2) = k2_calc(CVec, dt, k1Vec)
+    return x_old + (37./378.)*k1 + (250./621.)*k3 + (124./594.)*k4 \
+            + (512./1771.)*k6
 
-    # New Stresses
-
-    CxxNew = CxxOld + Cxxk2
-    CyyNew = CyyOld + Cyyk2
-    CxyNew = CxyOld + Cxyk2
-
-    return (CxxNew, CyyNew, CxyNew)
-
-def RK4_step():
-    pass
+def explct_euler_step(x_old, dt): 
+    return x_old + dt*solve_eqns(x_old)
 
 # -----------------------------------------------------------------------------
 # MAIN
@@ -328,10 +314,10 @@ oneOverWi = 1. / Wi
 
 # Useful operators 
 
-MDY = mk_diff_y()
+MDY = tsm.mk_diff_y()
 MDYY = dot(MDY,MDY)
 MDYYY = dot(MDY,MDYY)
-MDX = mk_diff_x()
+MDX = tsm.mk_diff_x()
 MDXX = dot(MDX, MDX)
 MDXY = dot(MDX, MDY)
 LAPLAC = dot(MDX,MDX) + dot(MDY,MDY)
@@ -344,7 +330,7 @@ constOneVec = zeros((2*N+1)*M, dtype='complex')
 constOneVec[N*M] = 1.
 
 # single mode Operators
-SMDY = mk_single_diffy()
+SMDY = tsm.mk_single_diffy()
 SMDYY = dot(SMDY, SMDY)
 SMDYYY = dot(SMDY, SMDYY)
 
@@ -369,8 +355,8 @@ del j
 # The initial stream-function
 
 PSI = zeros(vecLen, dtype='complex')
-# Perturb first 3 Chebyshevs
-#PSI[(N-1)*M:(N-1)*M + 3] = amp*(random.random(3) + 1.j*random.random(3))
+# Perturb first 3 Chebyshevs for linear stability
+#PSI[(N-1)*M:(N-1)*M + 3] = 1e-3#*(random.random(3) + 1.j*random.random(3))
 #PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
 #PSI[N*M]   += 2.0/3.0
@@ -384,16 +370,27 @@ PSIOld, Nu = pickle.load(open(inFileName, 'r'))
 #PSI = decrease_resolution(PSIOld)
 PSI = PSIOld
 
-# Initial Stress is Newtonian
+# Initial Stress is Newtonian base profile stress.
 
-Cxx = zeros(vecLen, dtype='complex')
-Cxx = Wi*2*dot(MDX, dot(MDY, PSI))
-Cxx[N*M] += 1.0
-Cyy = zeros(vecLen, dtype='complex')
-Cyy = - Wi*2*dot(MDY, dot(MDX, PSI))
-Cyy[N*M] += 1.0
-Cxy = zeros(vecLen, dtype='complex')
-Cxy = Wi*dot(MDYY, PSI) - Wi*dot(MDX, dot(MDX, PSI))
+#Cxx = zeros(vecLen, dtype='complex')
+#Cxx = Wi*2*dot(MDX, dot(MDY, PSI))
+#Cxx[N*M] += 1.0
+#Cyy = zeros(vecLen, dtype='complex')
+#Cyy = -Wi*2*dot(MDY, dot(MDX, PSI))
+#Cyy[N*M] += 1.0
+#Cxy = zeros(vecLen, dtype='complex')
+#Cxy = Wi*(dot(MDYY, PSI) - dot(MDXX, PSI)) 
+
+# Initial stress is calculated from the streamfunction
+
+Cxx, Cxy, Cyy = base_stress_profile(PSI)
+
+stressOld = zeros(3*vecLen, dtype='D')
+stressOld[:vecLen] = Cxx
+stressOld[vecLen:2*vecLen] = Cyy
+stressOld[2*vecLen:3*vecLen] = Cxy
+
+
 
 # FORM THE STREAMFUNCTION OPERATORS
 PsiOpInvList = []
@@ -454,7 +451,7 @@ timesList = r_[dt:dt*numTimeSteps:dt]
 # open the files
 traceOutFp = open(outFileNameTrace, 'w')
 psiSeriesFp = open(outFileNameTime, 'w')
-pickle.dump(PSI, psiSeriesFp)
+pickle.dump((PSI, Cxx, Cyy, Cxy), psiSeriesFp)
 
 print """
 Beginning Time Iteration:
@@ -470,15 +467,15 @@ for tindx, currTime in enumerate(timesList):
     # Make the vector for the RHS of the equations
     U = dot(MDY, PSIOld)
     V = - dot(MDX, PSIOld)    
-    MMU = prod_mat(U)
-    MMV = prod_mat(V)
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
 
     # PSI
     RHSVec = Re*dot(LAPLAC, PSIOld) \
             + dt*0.5*beta*dot(BIHARM, PSIOld) \
             - dt*Re*dot(MMU, dot(MDXLAPLAC, PSIOld)) \
             - dt*Re*dot(MMV, dot(MDYLAPLAC, PSIOld))\
-            + (1.-beta)*oneOverWi*(dot(MDXX, Cxy) \
+            + dt*(1.-beta)*oneOverWi*(dot(MDXX, Cxy) \
                     + dot(MDXY,(Cyy - Cxx)) \
                     - dot(MDYY, Cxy) )
 
@@ -523,20 +520,30 @@ for tindx, currTime in enumerate(timesList):
     VGRAD = dot(MMU, MDX) + dot(MMV, MDY)
 
     # Step the Stresses
+    stressOld[:vecLen] = CxxOld
+    stressOld[vecLen:2*vecLen] = CyyOld
+    stressOld[2*vecLen:3*vecLen] = CxyOld
 
-    (Cxx, Cyy, Cxy) = RK2_step(CxxOld, CyyOld, CxyOld, dt)
+    stressNew = rk4_step(stressOld,  dt)
+
+    Cxx = stressNew[:vecLen] 
+    Cyy = stressNew[vecLen:2*vecLen]
+    Cxy = stressNew[2*vecLen:3*vecLen]
+
     
     # KE outputted is always that of the previous step
     Usq = dot(MMU,U) + dot(MMV,V)
-    KE0 = 0.5*real(dot(INTY, Usq[N*M:(N+1)*M]))
+    KE0 = (15./8.)*0.5*real(dot(INTY, Usq[N*M:(N+1)*M]))
     Usq1 = Usq[(N-1)*M:N*M]*exp(1.j*kx) + Usq[(N+1)*M:(N+2)*M]*exp(-1.j*kx)
-    KE1  = 0.5*real(dot(INTY, Usq1))
+    KE1  = (15./8.)*0.5*real(dot(INTY, Usq1))
 
     if not tindx % (numTimeSteps/numFrames):
-        pickle.dump(PSI, psiSeriesFp)
+        pickle.dump((PSI, Cxx, Cyy, Cxy), psiSeriesFp)
         print "{0:15.8g} {1:15.8g} {2:15.8g}".format(currTime-dt, KE0, KE1)
 
-    traceOutFp.write("{0:15.8g} {1:15.8g} {2:15.8g}\n".format(currTime-dt, KE0, KE1))
+    traceOutFp.write(
+        "{0:15.8g} {1:15.8g} {2:15.8g} \n".format(
+            currTime-dt, KE0, KE1, ))
 
 traceOutFp.close()
 psiSeriesFp.close()
