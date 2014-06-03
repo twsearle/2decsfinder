@@ -2,7 +2,7 @@
 #   colour map plotter for 2D coherent state finder
 #   animated.
 #
-#   Last modified: Tue  3 Jun 14:25:53 2014
+#   Last modified: Tue  3 Jun 14:58:10 2014
 #
 #------------------------------------------------------------------------------
 
@@ -130,26 +130,29 @@ numFrames=len(Psi2DList)
 for i in range(numFrames):
 
     ax1 = fig.add_subplot(2,2,1)
-    ax1.imshow(real(Psi2DList[0]), origin='lower', extent=[0,22,-1,1],
+    im1 = ax1.imshow(real(Psi2DList[0]), origin='lower', extent=[0,22,-1,1],
                    aspect=4, vmin=min_psi , vmax=max_psi )
+    plt.colorbar(im1, orientation='horizontal')
     ax1.set_title('psi, time = {0}'.format(interFrameT*i))
 
     ax2 = fig.add_subplot(2,2,2)
-    ax2.imshow(real(Cxx2DList[0]), origin='lower', extent=[0,22,-1,1],
+    im2 = ax2.imshow(real(Cxx2DList[0]), origin='lower', extent=[0,22,-1,1],
                    aspect=4, vmin=min_xx , vmax=max_yy )
+    plt.colorbar(im2, orientation='horizontal')
     ax2.set_title('Cxx, time = {0}'.format(interFrameT*i))
 
     ax3 = fig.add_subplot(2,2,3)
-    ax3.imshow(real(Cyy2DList[0]), origin='lower', extent=[0,22,-1,1],
+    im3 = ax3.imshow(real(Cyy2DList[0]), origin='lower', extent=[0,22,-1,1],
                    aspect=4, vmin=min_yy , vmax=max_yy )
+    plt.colorbar(im3, orientation='horizontal')
     ax3.set_title('Cyy, time = {0}'.format(interFrameT*i))
 
     ax4 = fig.add_subplot(2,2,4)
-    ax4.imshow(real(Cxy2DList[0]), origin='lower', extent=[0,22,-1,1],
+    im4 = ax4.imshow(real(Cxy2DList[0]), origin='lower', extent=[0,22,-1,1],
                    aspect=4, vmin=min_xy , vmax=max_xy )
+    plt.colorbar(im4, orientation='horizontal')
     ax4.set_title('Cxy, time = {0}'.format(interFrameT*i))
 
-    plt.colorbar(orientation='horizontal')
     fig.tight_layout()
 
     fig.savefig('./gifs/all/cmaps/{0:04d}.png'.format(i))
