@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Thu 17 Apr 17:35:39 2014
+#   Last modified: Wed  4 Jun 14:46:05 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -42,7 +42,7 @@ NOld = N#3
 MOld = M#30
 kxOld = kx
 ReOld = Re
-bOld = beta+0.0001 
+bOld = beta+0.1 
 WiOld = Wi
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
@@ -635,7 +635,7 @@ del j
 #Nu  = 0.35
 
 #inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
-#PSI, Nu = pickle.load(inFp)
+#PSIOld, Nu = pickle.load(inFp)
 
 
 PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
@@ -672,7 +672,7 @@ inv_jac = eye(4*vecLen+1, 4*vecLen +1) #linalg.inv(find_jacobian(xVec))
 
 #xVec = old_newton(xVec)
 
-#xVec = line_search(solve_eq, find_jacobian, xVec)
+xVec = line_search(solve_eq, find_jacobian, xVec)
 
 
 xVec = optimize.newton_krylov(solve_eq, xVec, inner_M=inv_jac, verbose=True)
@@ -692,7 +692,7 @@ MMU = tsm.c_prod_mat(U)
 MMV = tsm.c_prod_mat(V)
 U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
 assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
-KE0 = 0.5*real(dot(INTY, U0sq))
+KE0 = (15.0/8.0)*0.5*real(dot(INTY, U0sq))
 
 print '\tKE0 = ', KE0
 print "\tnorm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
