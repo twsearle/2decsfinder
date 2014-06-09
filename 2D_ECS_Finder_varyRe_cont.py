@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon  9 Jun 14:50:45 2014
+#   Last modified: Mon  9 Jun 15:41:47 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -18,6 +18,7 @@ import ConfigParser
 import argparse
 
 import TobySpectralMethods as tsm
+import matrix_checker as mmc
 
 #SETTINGS----------------------------------------------------------------------
 
@@ -30,6 +31,7 @@ Re = config.getfloat('General', 'Re')
 Wi = config.getfloat('General', 'Wi')
 beta = config.getfloat('General', 'beta')
 kx = config.getfloat('General', 'kx')
+dS = config.getfloat('Newton-Raphson', 'dS')
 fp.close()
 
 y_star = 0.5
@@ -62,16 +64,17 @@ kx = args.kx
 consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
 
 NOld = N#3 
-MOld = M#40
-kxOld = kx#+0.01
+MOld = M#30
+kxOld = kx
 ReOld = Re
-bOld = beta-0.7
-WiOld = Wi#-0.1
+bOld = beta#+0.1 
+WiOld = Wi
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
-outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
+traceOutFileName = "cont-trace{0}.dat".format(inFileName[2:-7])
 
 tsm.initTSM(N_=N, M_=M, kx_=kx)
+
 #------------------------------------------------------------------------------
 
 #FUNCTIONS
@@ -85,6 +88,7 @@ def solve_eq(xVec):
     Cyy = xVec[2*vecLen:3*vecLen] 
     Cxy = xVec[3*vecLen:4*vecLen]
     Nu  = xVec[4*vecLen]
+    Re_ = real(xVec[4*vecLen+1])
 
 
     # Useful Vectors
@@ -114,12 +118,12 @@ def solve_eq(xVec):
 
     #######calculate the Residuals########
 
-    residualsVec = zeros((4*vecLen + 1), dtype='complex')
+    residualsVec = zeros((4*vecLen + 2), dtype='complex')
 
     #####psi
-    residualsVec[0:vecLen] = + Re*Nu*dot(dot(MDX,LAPLAC),PSI) \
-                             - Re*dot(MMU, dot(MDX, LAPLACPSI)) \
-                             - Re*dot(MMV, dot(MDY, LAPLACPSI)) \
+    residualsVec[0:vecLen] = + Re_*Nu*dot(dot(MDX,LAPLAC),PSI) \
+                             - Re_*dot(MMU, dot(MDX, LAPLACPSI)) \
+                             - Re_*dot(MMV, dot(MDY, LAPLACPSI)) \
                              + beta*dot(BIHARM, PSI) \
                              - (1.-beta)*(dot(MDXX, Txy) + dot(MDXY, (Tyy - Txx)) \
                                           - dot(MDYY, Txy))
@@ -142,8 +146,13 @@ def solve_eq(xVec):
     #####Nu
     residualsVec[4*vecLen] = imag(dot(SPEEDCONDITION, PSI[(N+1)*M:(N+2)*M]))
 
+    #####Re
+    residualsVec[4*vecLen + 1] = (Re0-Re_)**2 \
+                                 + sum((xVec0-xVec[:4*vecLen+1])**2)\
+                                 - dS**2
+    
     #####psi0
-    residualsVec[N*M:(N+1)*M] = - Re*dot(VGRAD, U)[N*M:(N+1)*M] \
+    residualsVec[N*M:(N+1)*M] = - Re_*dot(VGRAD, U)[N*M:(N+1)*M] \
                                 + beta*dot(MDYYY, PSI)[N*M:(N+1)*M] \
                                 + (1.-beta)*dot(MDY,Txy)[N*M:(N+1)*M]
     # set the pressure gradient (pressure driven flow)
@@ -167,13 +176,13 @@ def solve_eq(xVec):
     del k
 
     # dyPsi0(+-1) = 0
-    residualsVec[N*M + M-3] = dot(DERIVTOP, PSI[N*M:(N+1)*M])
-    residualsVec[N*M + M-2] = dot(DERIVBOT, PSI[N*M:(N+1)*M])
+    residualsVec[N*M + M-3] = dot(DERIVTOP, (PSI[N*M:(N+1)*M]))
+    residualsVec[N*M + M-2] = dot(DERIVBOT, (PSI[N*M:(N+1)*M]))
 
     # Psi0(-1) = 0
     residualsVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M]))
 
-    return (residualsVec)
+    return(residualsVec)
 
 def find_jacobian(x):
 
@@ -182,6 +191,7 @@ def find_jacobian(x):
     Cyy = xVec[2*vecLen:3*vecLen] 
     Cxy = xVec[3*vecLen:4*vecLen]
     Nu  = xVec[4*vecLen]
+    Re_  = real(xVec[4*vecLen+1])
 
 
     # Useful Vectors
@@ -212,15 +222,15 @@ def find_jacobian(x):
 
     #################SET THE JACOBIAN MATRIX####################
 
-    jacobian = zeros((4*vecLen+1,  4*vecLen+1), dtype='complex')
+    jacobian = zeros((4*vecLen+2,  4*vecLen+2), dtype='complex')
 
     ###### psi
     ##psi
-    jacobian[0:vecLen, 0:vecLen] = + Nu*Re*dot(MDX, LAPLAC) \
-                                   - Re*dot(dot(MMU, MDX), LAPLAC) \
-                                   - Re*dot(dot(MMV, MDY), LAPLAC) \
-                                   + Re*dot(tsm.c_prod_mat(dot(MDY, LAPLACPSI)), MDX) \
-                                   - Re*dot(tsm.c_prod_mat(dot(MDX, LAPLACPSI)), MDY) \
+    jacobian[0:vecLen, 0:vecLen] = + Nu*Re_*dot(MDX, LAPLAC) \
+                                   - Re_*dot(dot(MMU, MDX), LAPLAC) \
+                                   - Re_*dot(dot(MMV, MDY), LAPLAC) \
+                                   + Re_*dot(tsm.c_prod_mat(dot(MDY, LAPLACPSI)), MDX) \
+                                   - Re_*dot(tsm.c_prod_mat(dot(MDX, LAPLACPSI)), MDY) \
                                    + beta*BIHARM 
     ##cxx
     jacobian[0:vecLen, vecLen:2*vecLen] = + (1.-beta)*oneOverWi*MDXY
@@ -229,7 +239,15 @@ def find_jacobian(x):
     ##cxy
     jacobian[0:vecLen, 3*vecLen:4*vecLen] = - (1.-beta)*oneOverWi*(MDXX - MDYY)
     ##Nu - vector not a product matrix
-    jacobian[0:vecLen, 4*vecLen] = Re*dot(MDX, LAPLACPSI)
+    jacobian[0:vecLen, 4*vecLen] = Re_*dot(MDX, LAPLACPSI)
+    ##Re_ - for the continuation in Reynold's number
+    jacobian[0:vecLen, 4*vecLen+1] = + Nu*dot(MDX, LAPLACPSI) \
+                                   - dot(dot(MMU, MDX), LAPLACPSI) \
+                                   - dot(dot(MMV, MDY), LAPLACPSI) \
+                                   + dot(tsm.c_prod_mat(dot(MDY, LAPLACPSI)),
+                                            dot(MDX, PSI)) \
+                                   - dot(tsm.c_prod_mat(dot(MDX, LAPLACPSI)),
+                                            dot(MDY, PSI)) 
 
     ###### Cxx
     ##psi                                   - dv.grad cxx
@@ -246,6 +264,8 @@ def find_jacobian(x):
     jacobian[vecLen:2*vecLen, 3*vecLen:4*vecLen] = 2.*MMDYU
     ##Nu - vector not a product matrix
     jacobian[vecLen:2*vecLen, 4*vecLen] = dot(MDX, Cxx) 
+    ##Re - for the continuation in Reynold's number
+    jacobian[vecLen:2*vecLen, 4*vecLen+1] = 0
 
     ###### Cyy
     ##psi
@@ -262,6 +282,8 @@ def find_jacobian(x):
     jacobian[2*vecLen:3*vecLen, 3*vecLen:4*vecLen] = 2.*MMDXV
     ##Nu - vector not a product matrix
     jacobian[2*vecLen:3*vecLen, 4*vecLen] = dot(MDX, Cyy)
+    ##Re - for the continuation in Reynold's number
+    jacobian[2*vecLen:3*vecLen, 4*vecLen+1] = 0
 
     ###### Cxy
     ##psi
@@ -278,18 +300,24 @@ def find_jacobian(x):
                                                      - oneOverWi*II
     ##Nu - vector not a product matrix
     jacobian[3*vecLen:4*vecLen, 4*vecLen] = dot(MDX, Cxy)
+    ##Re - for the continuation in Reynold's number
+    jacobian[3*vecLen:4*vecLen, 4*vecLen+1] = 0
 
     ###### Nu 
     jacobian[4*vecLen, (N+1)*M:(N+2)*M] = -1.j*0.5*SPEEDCONDITION
     jacobian[4*vecLen, (N-1)*M:N*M] = 1.j*0.5*SPEEDCONDITION
+
+    ###### Re equation
+    jacobian[4*vecLen+1, 0:4*vecLen+1] = -2*(xVec0-xVec[0:4*vecLen+1])
+    jacobian[4*vecLen+1, 4*vecLen+1] = -2*(Re0-Re_) 
 
     ###### psi0 equation
     #set row to zero
     jacobian[N*M:(N+1)*M, :] = 0
     ##u0
     jacobian[N*M:(N+1)*M, 0:vecLen] = \
-                            + Re*dot(tsm.c_prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
-                            + Re*dot(tsm.c_prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
+                            + Re_*dot(tsm.c_prod_mat(dot(MDX, PSI)), MDYY)[N*M:(N+1)*M, :]\
+                            + Re_*dot(tsm.c_prod_mat(dot(MDYY, PSI)), MDX)[N*M:(N+1)*M, :]\
                             + beta*MDYYY[N*M:(N+1)*M, :]
     ##cxx
     jacobian[N*M:(N+1)*M, vecLen:2*vecLen] = 0
@@ -301,6 +329,12 @@ def find_jacobian(x):
     ##nu
     jacobian[N*M:(N+1)*M, 4*vecLen] = 0
 
+    ##Re
+    jacobian[N*M:(N+1)*M, 4*vecLen+1] = + dot(tsm.c_prod_mat(dot(MDX, PSI)), 
+                                            dot(MDYY, PSI))[N*M:(N+1)*M]\
+                                      + dot(tsm.c_prod_mat(dot(MDYY, PSI)),
+                                            dot(MDX, PSI))[N*M:(N+1)*M]
+    
 
     #######apply BC's to jacobian
 
@@ -355,21 +389,6 @@ def increase_resolution(vec):
     fullres[(N-NOld)*M:(N-NOld)*M + M*(2*NOld+1)] = highMres[0:M*(2*NOld+1)]
     return fullres
 
-def decrease_resolution(vec):
-    """ 
-    decrease both the N and M resolutions
-    """
-
-    lowMvec = zeros((2*NOld+1)*M, dtype='complex')
-    for n in range(2*NOld+1):
-        lowMvec[n*M:(n+1)*M] = vec[n*MOld:n*MOld + M]
-    del n
-
-    lowNMvec = zeros((2*N+1)*M, dtype='D')
-    lowNMvec = lowMvec[(NOld-N)*M:(NOld-N)*M + (2*N+1)*M]
-
-    return lowNMvec
-
 def mk_cheb_int():
     integrator = zeros(M, dtype='d')
     for m in range(0,M,2):
@@ -377,70 +396,6 @@ def mk_cheb_int():
     del m
     return integrator
     
-def newtonian_profile(PSI):
-    """
-    given a Newtonian ECS profile, find the stresses.
-    This really doesn't look like it works...
-    """
-
-    U = dot(MDX, PSI)
-    V = - dot(MDY, PSI)
-    VGRAD = dot(U,MDX) + dot(V,MDY)
-
-    BPFEQNS = zeros((3*vecLen, 3*vecLen), dtype='D')
-    # Cxx eqn
-    # Cxx
-    BPFEQNS[0:vecLen, 0:vecLen] = Nu*MDX - VGRAD \
-                                + 2*tsm.c_prod_mat(dot(MDX,U)) - oneOverWi*II
-    # Cyy
-    BPFEQNS[0:vecLen, vecLen:2*vecLen] = 0
-    # Cxy
-    BPFEQNS[0:vecLen, 2*vecLen:3*vecLen] = 2*tsm.c_prod_mat(dot(MDY, U))
-    # Cyy eqn
-    # Cxx
-    BPFEQNS[vecLen:2*vecLen, 0:vecLen] = 0
-    # Cyy
-    BPFEQNS[vecLen:2*vecLen, vecLen:2*vecLen] = Nu*MDX - VGRAD - oneOverWi*II\
-                                              + 2.*tsm.c_prod_mat(dot(MDY, V))
-    # Cxy
-    BPFEQNS[vecLen:2*vecLen, 2*vecLen:3*vecLen] = 2.*tsm.c_prod_mat(dot(MDX, V))
-    #Cxy eqn
-    # Cxx
-    BPFEQNS[2*vecLen:3*vecLen, 0:vecLen] = tsm.c_prod_mat(dot(MDX, V))
-    # Cyy 
-    BPFEQNS[2*vecLen:3*vecLen, vecLen:2*vecLen] = tsm.c_prod_mat(dot(MDY, U))
-    # Cxy
-    BPFEQNS[2*vecLen:3*vecLen, 2*vecLen:3*vecLen] = Nu*MDX - VGRAD - oneOverWi*II 
-
-    RHS = zeros(3*vecLen, dtype='D')
-    RHS[0] = -oneOverWi
-    RHS[vecLen] = -oneOverWi
-    RHS[2*vecLen:3*vecLen] = 0
-
-    soln = linalg.solve(BPFEQNS, RHS)
-
-    Cxx = soln[0:vecLen]
-    Cyy = soln[vecLen:2*vecLen]
-    Cxy = soln[2*vecLen:3*vecLen]
-
-    return Cxx, Cyy, Cxy
-
-def x_independent_profile(PSI):
-    """
-     I think these are the equations for the x independent stresses from the base
-     profile.
-    """
-
-    Cyy = zeros(vecLen, dtype='complex')
-    Cyy[N*M] += 1.0
-    Cxy = zeros(vecLen, dtype='complex')
-    Cxy = Wi*dot(MDYY, PSI)
-    Cxx = zeros(vecLen, dtype='complex')
-    Cxx = 2*Wi*Wi*Cxy*Cxy
-    Cxx[N*M] += 1.0
-
-    return (Cxx, Cxy, Cyy)
-
 def line_search(solve_eq, find_jac, x, alpha=1e-4, NRtol=1e-6):
     """
     My implementation of the line search global quasi Newton Raphson method for
@@ -612,8 +567,9 @@ print """
 \tRe \t= {Re}         
 \tbeta \t= {beta}
 \tkx \t= {kx}
+\tdS \t= {dS}
 \t------------------------------------
-        """.format(N=N, M=M, kx=kx, Re=Re, beta=beta, Wi=Wi)
+        """.format(N=N, M=M, kx=kx, Re=Re, beta=beta, Wi=Wi, dS=dS)
 
 print "The length of a vector is: ", vecLen
 print "The size of the jacobian Matrix is: {x} by {y}".format(x=(4*vecLen+1), y=
@@ -658,95 +614,70 @@ for j in range(M):
     DERIVBOT[j] = dot(BBOT, singleDY[:,j])
 del j
 
-
-
-#PSI = random.random(vecLen)/10.0
-
-#PSI = zeros(vecLen, dtype='complex')
-#PSI[N*M+1] =  3.0/8.0
-#PSI[N*M+2] = -1.0
-#PSI[N*M+3] = -1.0/8.0
-
-# Forgotten which of these is right.
-#PSI[N*M]   += 2.0/3.0
-#PSI[N*M+1] += 3.0/4.0
-#PSI[N*M+2] += 0.0
-#PSI[N*M+3] += -1.0/12.0
-#Nu  = 0.35
-
-#inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
-#PSIOld, Nu = pickle.load(inFp)
-
-PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open('test.pickle')) 
-
-#PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
-
-#PSI = increase_resolution(PSIOld)
-#Cxx = increase_resolution(CxxOld)
-#Cyy = increase_resolution(CyyOld)
-#Cxy = increase_resolution(CxyOld)
-
-# Effort to write a function to return newtonian stresses given a profile don't
-# think it works.
-#Cxx, Cyy, Cxy = newtonian_profile(PSI)
-
-# Stresses from the x independent laminar flow
-#Cxx, Cyy, Cxy = x_independent_profile(PSI)
-
-#pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open("Newtonian_profile_test.pickle", 'w'))
-
-xVec = zeros((4*vecLen + 1), dtype='complex')
-xVec[0:vecLen]          = PSI
-xVec[vecLen:2*vecLen]   = Cxx
-xVec[2*vecLen:3*vecLen] = Cyy
-xVec[3*vecLen:4*vecLen] = Cxy
-xVec[4*vecLen]          = Nu 
-
-
-
-
 # Set only the imaginary part at a point to zero to constrain nu. I will choose
 # y = 0.5
 SPEEDCONDITION = zeros(M, dtype = 'complex')
 for m in range(M):
     SPEEDCONDITION[m] = cos(m*arccos(y_star)) 
 
+PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open(inFileName, 'r'))
 
-inv_jac = eye(4*vecLen+1, 4*vecLen +1) #linalg.inv(find_jacobian(xVec))
+traceOutFp = open(traceOutFileName, 'w')
 
-xVec = old_newton(xVec)
+for cCounter in range(1000000):
 
-#residuals = solve_eq(xVec)
+    Re0 = copy(Re)
+    Re = Re - 0.001
 
-#residuals[N*M:(N+1)*M] = 0
-#print 'norm of psi', linalg.norm(residuals[:vecLen])
-#print 'norm of psi0', linalg.norm(residuals[N*M:(N+1)*M])
-#exit(1)
+    xVec = zeros((4*vecLen + 2), dtype='complex')
+    xVec[0:vecLen]          = PSI
+    xVec[vecLen:2*vecLen]   = Cxx
+    xVec[2*vecLen:3*vecLen] = Cyy
+    xVec[3*vecLen:4*vecLen] = Cxy
+    xVec[4*vecLen]          = Nu 
+    xVec[4*vecLen + 1]      = Re
 
-#xVec = line_search(solve_eq, find_jacobian, xVec)
+    xVec0 = xVec[:4*vecLen+1]
+
+    #mmc.matrix_checker(find_jacobian(xVec), vecLen, False)
+    #xVec = line_search(solve_eq, find_jacobian, xVec)
+    #xVec = old_newton(xVec)
+
+    inv_jac = eye(4*vecLen+2, 4*vecLen +2) #linalg.inv(find_jacobian(xVec))
+    xVec = optimize.newton_krylov(solve_eq, xVec, inner_M=inv_jac, verbose=True)
 
 
-#xVec = optimize.newton_krylov(solve_eq, xVec, inner_M=inv_jac, verbose=True)
+    PSI = xVec[0:vecLen] 
+    Cxx = xVec[1*vecLen:2*vecLen] 
+    Cyy = xVec[2*vecLen:3*vecLen] 
+    Cxy = xVec[3*vecLen:4*vecLen]
+    Nu  = xVec[4*vecLen]
+    Re  = xVec[4*vecLen + 1]
 
-PSI = xVec[0:vecLen] 
-Cxx = xVec[1*vecLen:2*vecLen] 
-Cyy = xVec[2*vecLen:3*vecLen] 
-Cxy = xVec[3*vecLen:4*vecLen]
-Nu  = xVec[4*vecLen]
+    print "\t------------------------------------\n"
+    print "\tNu = ", Nu
 
-print "\t------------------------------------\n"
-print "\tNu = ", Nu
+    U = dot(MDY, PSI)
+    V = -dot(MDX, PSI)
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
+    U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
+    assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
+    KE0 = (15.0/8.0)*0.5*real(dot(INTY, U0sq))
 
-U = dot(MDY, PSI)
-V = -dot(MDX, PSI)
-MMU = tsm.c_prod_mat(U)
-MMV = tsm.c_prod_mat(V)
-U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
-assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
-KE0 = (15.0/8.0)*0.5*real(dot(INTY, U0sq))
+    print '\tKE0 = {0}, Re = {1}'.format(KE0, Re)
+    print "\tnorm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
 
-print '\tKE0 = ', KE0
-print "\tnorm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
+    if KE0 > 1e-4 and KE0 < 1.0:
+        traceOutFp.write("{0:10.5f} {1:10.5f} \n".format( Re, kx ))
+        traceOutFp.flush()
+       
+        if not cCounter % 10:
+            consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
+            outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re:6.2f}-b{b}-Wi{Wi}.pickle".format(**consts)
+            pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
+    else:
+        print 'KE0 is way too small or it is probably laminar'
+        break
 
-if KE0 > 1e-4:
-    pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
+traceOutFp.close()

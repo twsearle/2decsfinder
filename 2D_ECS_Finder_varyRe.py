@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon  9 Jun 14:50:45 2014
+#   Last modified: Mon  9 Jun 17:25:59 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -12,7 +12,6 @@ Newton-Rhaphson and the Oldroyd-B model."""
 from scipy import *
 from scipy import linalg
 from scipy import optimize
-import matplotlib.pyplot as plt
 import cPickle as pickle
 import ConfigParser
 import argparse
@@ -50,6 +49,12 @@ argparser.add_argument("-Wi", type=float, default=Wi,
                 help='Override Weissenberg number of the config file')
 argparser.add_argument("-kx", type=float, default=kx, 
                 help='Override wavenumber of the config file')
+argparser.add_argument("-ReStep", type=float, default=1.0, 
+                help='Override ReStep, the step in Reynold\'s number default 1.0 ')
+argparser.add_argument("-ReLo", type=float, default=2000.0, 
+                help='Override ReLo, lowest Reynold\'s number default 2000 ')
+argparser.add_argument("-ReHi", type=float, default=3000.0, 
+                help='Override ReHi, highest Reynold\'s number default 3000 ')
 
 args = argparser.parse_args()
 N = args.N 
@@ -62,14 +67,17 @@ kx = args.kx
 consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
 
 NOld = N#3 
-MOld = M#40
-kxOld = kx#+0.01
+MOld = M#64
+kxOld = kx
 ReOld = Re
-bOld = beta-0.7
-WiOld = Wi#-0.1
+bOld = beta#-0.1 
+WiOld = Wi
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
+traceOutFileName = "cont-trace{0}".format(inFileName[2:-7])
+
+ReList = r_[args.ReHi:args.ReLo:-args.ReStep]
 
 tsm.initTSM(N_=N, M_=M, kx_=kx)
 #------------------------------------------------------------------------------
@@ -167,13 +175,13 @@ def solve_eq(xVec):
     del k
 
     # dyPsi0(+-1) = 0
-    residualsVec[N*M + M-3] = dot(DERIVTOP, PSI[N*M:(N+1)*M])
-    residualsVec[N*M + M-2] = dot(DERIVBOT, PSI[N*M:(N+1)*M])
+    residualsVec[N*M + M-3] = dot(DERIVTOP, (PSI[N*M:(N+1)*M]))
+    residualsVec[N*M + M-2] = dot(DERIVBOT, (PSI[N*M:(N+1)*M]))
 
     # Psi0(-1) = 0
     residualsVec[N*M + M-1] = dot(BBOT, (PSI[N*M:(N+1)*M]))
 
-    return (residualsVec)
+    return(residualsVec)
 
 def find_jacobian(x):
 
@@ -467,7 +475,9 @@ def line_search(solve_eq, find_jac, x, alpha=1e-4, NRtol=1e-6):
     print "\n\tBegin Newton line search method"
     print "\t------------------------------------"
     finCond = False
+    NRcounter = 0
     while not finCond:
+        NRcounter +=1
         # Calculate the newton step, dx
         F_x0 = solve_eq(x)
         j_x0 = find_jac(x)
@@ -569,6 +579,9 @@ def line_search(solve_eq, find_jac, x, alpha=1e-4, NRtol=1e-6):
         if L2 < NRtol:
             print "Solution found!"
             finCond = True
+        if NRcounter > 200:
+            print "Too many iterations: Newton Rhaphson is probably stuck!"
+            exit(1)
 
     return x
 
@@ -658,8 +671,6 @@ for j in range(M):
     DERIVBOT[j] = dot(BBOT, singleDY[:,j])
 del j
 
-
-
 #PSI = random.random(vecLen)/10.0
 
 #PSI = zeros(vecLen, dtype='complex')
@@ -677,14 +688,13 @@ del j
 #inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
 #PSIOld, Nu = pickle.load(inFp)
 
-PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open('test.pickle')) 
 
-#PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
+PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open(inFileName, 'r'))
 
-#PSI = increase_resolution(PSIOld)
-#Cxx = increase_resolution(CxxOld)
-#Cyy = increase_resolution(CyyOld)
-#Cxy = increase_resolution(CxyOld)
+#PSI = decrease_resolution(PSIOld)
+#Cxx = decrease_resolution(CxxOld)
+#Cyy = decrease_resolution(CyyOld)
+#Cxy = decrease_resolution(CxyOld)
 
 # Effort to write a function to return newtonian stresses given a profile don't
 # think it works.
@@ -702,51 +712,59 @@ xVec[2*vecLen:3*vecLen] = Cyy
 xVec[3*vecLen:4*vecLen] = Cxy
 xVec[4*vecLen]          = Nu 
 
+traceOutfp = open(traceOutFileName, 'w')
+
+ccounter = 0
+for Re in ReList:
+    print '\nRe = ',Re
+    ccounter+=1
 
 
-
-# Set only the imaginary part at a point to zero to constrain nu. I will choose
-# y = 0.5
-SPEEDCONDITION = zeros(M, dtype = 'complex')
-for m in range(M):
-    SPEEDCONDITION[m] = cos(m*arccos(y_star)) 
-
-
-inv_jac = eye(4*vecLen+1, 4*vecLen +1) #linalg.inv(find_jacobian(xVec))
-
-xVec = old_newton(xVec)
-
-#residuals = solve_eq(xVec)
-
-#residuals[N*M:(N+1)*M] = 0
-#print 'norm of psi', linalg.norm(residuals[:vecLen])
-#print 'norm of psi0', linalg.norm(residuals[N*M:(N+1)*M])
-#exit(1)
-
-#xVec = line_search(solve_eq, find_jacobian, xVec)
+    # Set only the imaginary part at a point to zero to constrain nu. I will choose
+    # y = 0.5
+    SPEEDCONDITION = zeros(M, dtype = 'complex')
+    for m in range(M):
+        SPEEDCONDITION[m] = cos(m*arccos(y_star)) 
 
 
-#xVec = optimize.newton_krylov(solve_eq, xVec, inner_M=inv_jac, verbose=True)
+    #xVec = old_newton(xVec)
 
-PSI = xVec[0:vecLen] 
-Cxx = xVec[1*vecLen:2*vecLen] 
-Cyy = xVec[2*vecLen:3*vecLen] 
-Cxy = xVec[3*vecLen:4*vecLen]
-Nu  = xVec[4*vecLen]
+    xVec = line_search(solve_eq, find_jacobian, xVec)
 
-print "\t------------------------------------\n"
-print "\tNu = ", Nu
+    #inv_jac = eye(4*vecLen+1, 4*vecLen +1) #linalg.inv(find_jacobian(xVec))
+    #xVec = optimize.newton_krylov(solve_eq, xVec, inner_M=inv_jac, verbose=True)
 
-U = dot(MDY, PSI)
-V = -dot(MDX, PSI)
-MMU = tsm.c_prod_mat(U)
-MMV = tsm.c_prod_mat(V)
-U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
-assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
-KE0 = (15.0/8.0)*0.5*real(dot(INTY, U0sq))
+    PSI = xVec[0:vecLen] 
+    Cxx = xVec[1*vecLen:2*vecLen] 
+    Cyy = xVec[2*vecLen:3*vecLen] 
+    Cxy = xVec[3*vecLen:4*vecLen]
+    Nu  = xVec[4*vecLen]
 
-print '\tKE0 = ', KE0
-print "\tnorm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
+    print "\t------------------------------------\n"
+    print "\tNu = ", Nu
 
-if KE0 > 1e-4:
-    pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
+    U = dot(MDY, PSI)
+    V = -dot(MDX, PSI)
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
+    U0sq = (dot(MMU,U) + dot(MMV,V))[N*M:(N+1)*M]
+    assert allclose(almostZero, imag(U0sq)), "Imaginary velocities!"
+    KE0 = (15.0/8.0)*0.5*real(dot(INTY, U0sq))
+
+    print '\tKE0 = ', KE0
+    print "\tnorm of 1st psi mode = ", linalg.norm(PSI[(N+1)*M:(N+2)*M], 2)
+
+    if KE0 > 1e-4 and KE0 < 1.0:
+        consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
+        traceOutfp.write('{Re} {kx} {KE0} {Nu}\n'.format(Re=Re, kx=kx, KE0=KE0,
+                                                         Nu=real(Nu)))
+        if not ccounter % 10:
+            outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
+            pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
+            traceOutfp.flush()
+    else:
+        traceOutfp.close()
+        print 'lost the ECS!'
+        exit(1)
+
+traceOutfp.close()

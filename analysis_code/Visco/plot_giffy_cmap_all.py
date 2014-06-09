@@ -2,7 +2,7 @@
 #   colour map plotter for 2D coherent state finder
 #   animated.
 #
-#   Last modified: Tue  3 Jun 16:30:03 2014
+#   Last modified: Thu  5 Jun 09:37:41 2014
 #
 #------------------------------------------------------------------------------
 
@@ -126,6 +126,9 @@ fig = plt.figure(figsize=(10.0,6.0))
 
 numFrames=len(Psi2DList)
 
+#min_xx = -1
+#max_xx =50
+
 for i in range(numFrames):
 
     ax1 = fig.add_subplot(2,2,1)
@@ -136,7 +139,7 @@ for i in range(numFrames):
 
     ax2 = fig.add_subplot(2,2,2)
     im2 = ax2.imshow(real(Cxx2DList[i]), origin='lower', extent=[0,22,-1,1],
-                   aspect=4, vmin=min_xx , vmax=max_yy )
+                   aspect=4, vmin=min_xx , vmax=max_xx )
     plt.colorbar(im2, orientation='horizontal')
     ax2.set_title('Cxx, time = {0}'.format(interFrameT*i))
 
