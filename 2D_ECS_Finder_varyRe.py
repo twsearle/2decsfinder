@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon  9 Jun 17:25:59 2014
+#   Last modified: Mon  9 Jun 18:13:23 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -75,7 +75,7 @@ WiOld = Wi
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
-traceOutFileName = "cont-trace{0}".format(inFileName[2:-7])
+traceOutFileName = "cont-trace{0}.dat".format(inFileName[2:-7])
 
 ReList = r_[args.ReHi:args.ReLo:-args.ReStep]
 
@@ -579,7 +579,7 @@ def line_search(solve_eq, find_jac, x, alpha=1e-4, NRtol=1e-6):
         if L2 < NRtol:
             print "Solution found!"
             finCond = True
-        if NRcounter > 200:
+        if NRcounter > 400:
             print "Too many iterations: Newton Rhaphson is probably stuck!"
             exit(1)
 

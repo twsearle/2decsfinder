@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon  9 Jun 14:50:45 2014
+#   Last modified: Tue 10 Jun 15:24:58 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -65,8 +65,8 @@ NOld = N#3
 MOld = M#40
 kxOld = kx#+0.01
 ReOld = Re
-bOld = beta-0.7
-WiOld = Wi#-0.1
+bOld = beta#-0.7
+WiOld = Wi-1.0
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
@@ -677,14 +677,14 @@ del j
 #inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
 #PSIOld, Nu = pickle.load(inFp)
 
-PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open('test.pickle')) 
+#PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open('test.pickle')) 
 
-#PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
+PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
 
-#PSI = increase_resolution(PSIOld)
-#Cxx = increase_resolution(CxxOld)
-#Cyy = increase_resolution(CyyOld)
-#Cxy = increase_resolution(CxyOld)
+PSI = increase_resolution(PSIOld)
+Cxx = increase_resolution(CxxOld)
+Cyy = increase_resolution(CyyOld)
+Cxy = increase_resolution(CxyOld)
 
 # Effort to write a function to return newtonian stresses given a profile don't
 # think it works.

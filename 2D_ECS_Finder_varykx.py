@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon  9 Jun 14:33:53 2014
+#   Last modified: Tue 10 Jun 15:28:49 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -50,12 +50,13 @@ argparser.add_argument("-Wi", type=float, default=Wi,
                 help='Override Weissenberg number of the config file')
 argparser.add_argument("-kx", type=float, default=kx, 
                 help='Override wavenumber of the config file')
-argparser.add_argument("-ReStep", type=float, default=1.0, 
+argparser.add_argument("-kxStep", type=float, default=0.01, 
                 help='Override kxStep, the step in wavenumber default 1.0 ')
-argparser.add_argument("-ReLo", type=float, default=2000.0, 
+argparser.add_argument("-kxLo", type=float, default=kx, 
                 help='Override kxLo, lowest wavenumber default 2000 ')
-argparser.add_argument("-ReHi", type=float, default=3000.0, 
+argparser.add_argument("-kxHi", type=float, default=2.01, 
                 help='Override kxHi, highest wavenumber default 3000 ')
+argparser.add_argument("-reverse", help="reverse list order", action='store_true')
 
 args = argparser.parse_args()
 N = args.N 
@@ -70,15 +71,20 @@ consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
 NOld = N#3 
 MOld = M#40
 kxOld = kx
-ReOld = Re+500
+ReOld = Re
 bOld = beta
 WiOld = Wi#-0.1
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
 
-kxList = r_[kxLo:kxHi:kxStep]
-traceOutFileName = "cont-trace_kx{0}".format(inFileName[2:-7])
+if args.reverse:
+    kxList = r_[args.kxHi:args.kxLo:-args.kxStep]
+else:
+    kxList = r_[args.kxLo:args.kxHi:args.kxStep]
+
+
+traceOutFileName = "cont-trace_kx{0}.dat".format(inFileName[2:-7])
 
 tsm.initTSM(N_=N, M_=M, kx_=kx)
 #------------------------------------------------------------------------------
@@ -720,7 +726,7 @@ for kx in kxList:
         outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
         pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
         traceOutfp.write('{Re} {kx} {KE0} {Nu}\n'.format(Re=Re, kx=kx, KE0=KE0,
-                                                         real(Nu=Nu)))
+                                                         Nu=real(Nu)))
     else:
         print 'lost the ECS!'
         exit(1)
