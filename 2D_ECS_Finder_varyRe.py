@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Mon  9 Jun 18:13:23 2014
+#   Last modified: Mon 16 Jun 23:46:31 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -55,6 +55,8 @@ argparser.add_argument("-ReLo", type=float, default=2000.0,
                 help='Override ReLo, lowest Reynold\'s number default 2000 ')
 argparser.add_argument("-ReHi", type=float, default=3000.0, 
                 help='Override ReHi, highest Reynold\'s number default 3000 ')
+argparser.add_argument("-reverse", help="reverse list order", action='store_true')
+
 
 args = argparser.parse_args()
 N = args.N 
@@ -77,7 +79,10 @@ inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
 traceOutFileName = "cont-trace{0}.dat".format(inFileName[2:-7])
 
-ReList = r_[args.ReHi:args.ReLo:-args.ReStep]
+if args.reverse: 
+    ReList = r_[args.ReLo:args.ReHi:args.ReStep]
+else:
+    ReList = r_[args.ReHi:args.ReLo:-args.ReStep]
 
 tsm.initTSM(N_=N, M_=M, kx_=kx)
 #------------------------------------------------------------------------------
@@ -758,10 +763,10 @@ for Re in ReList:
         consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
         traceOutfp.write('{Re} {kx} {KE0} {Nu}\n'.format(Re=Re, kx=kx, KE0=KE0,
                                                          Nu=real(Nu)))
-        if not ccounter % 10:
-            outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
-            pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
-            traceOutfp.flush()
+        #if not ccounter % 10:
+        outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
+        pickle.dump((PSI,Cxx,Cyy,Cxy,Nu), open(outFileName, 'w'))
+        traceOutfp.flush()
     else:
         traceOutfp.close()
         print 'lost the ECS!'
