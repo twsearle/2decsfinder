@@ -1,13 +1,17 @@
 #-----------------------------------------------------------------------------
-#   2D Newtonian Poiseuille flow time iteration
+#   2D Oscillatory Plane Poiseuille flow time iteration
 #
-#   Last modified: Mon 21 Jul 13:19:37 2014
+#   Last modified: Mon 21 Jul 15:39:02 2014
 #
 #-----------------------------------------------------------------------------
 
-""" Program to find Exact coherent states from a given flow profile using a time
-iteration of the flow. When the flow settles to a steady state, we will know
-that we have a exact solution to the Navier-Stokes equations.
+"""
+
+Simulation of Oscillatory pipe flow. In the past I have used a numerical scheme
+which uses the streamfunction at the wrong time in the Runge-Kutta method. Here
+I attempt to correct this by calculating the streamfunction twice, Once at t
++ dt/2 and once at t + dt.
+
 """
 
 # MODULES
@@ -28,12 +32,17 @@ Re = config.getfloat('General', 'Re')
 Wi = config.getfloat('General', 'Wi')
 beta = config.getfloat('General', 'beta')
 kx = config.getfloat('General', 'kx')
+
+period = config.getfloat('Oscillatory','period')
+phase = config.getfloat('Oscillatory','phase')
+
 dt = config.getfloat('Time Iteration', 'dt')
 amp = config.getfloat('Time Iteration', 'amp')
 totTime = config.getfloat('Time Iteration', 'totTime')
 numFrames = config.getint('Time Iteration', 'numFrames')
 fp.close()
 
+omega = 2*pi / period
 numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 assert Wi != 0.0, "cannot have Wi = 0!"
@@ -56,77 +65,6 @@ tsm.initTSM(N_=N, M_=M, kx_=kx)
 # -----------------------------------------------------------------------------
 
 # FUNCTIONS
-
-def base_stress_profile(PSI):
-    """
-    given a Newtonian ECS profile, find the stresses. Added a finer grid to
-    solve this then switch back.  This really doesn't look like it works...
-    """
-
-    Nhi = 40
-    Mhi = 30
-    PSI = increase_resolution(PSI,N,M,Nhi,Mhi)
-    vecLen2 = (2*Nhi+1)*Mhi
-
-    tsm.initTSM(N_=Nhi, M_=Mhi, kx_=kx)
-    MDY_ = tsm.mk_diff_y()
-    MDX_ = tsm.mk_diff_x()
-    II_ = zeros((vecLen2, vecLen2), dtype='D')
-
-    U = dot(MDX_, PSI)
-    V = - dot(MDY_, PSI)
-    VGRAD_ = dot(U,MDX_) + dot(V,MDY_)
-
-    BPFEQNS = zeros((3*vecLen2, 3*vecLen2), dtype='D')
-    # Cxx eqn
-    # Cxx
-    BPFEQNS[0:vecLen2, 0:vecLen2] = Nu*MDX_ - VGRAD_ \
-                                + 2*tsm.c_prod_mat(dot(MDX_,U)) - oneOverWi*II_
-    # Cyy
-    BPFEQNS[0:vecLen2, vecLen2:2*vecLen2] = 0
-    # Cxy
-    BPFEQNS[0:vecLen2, 2*vecLen2:3*vecLen2] = 2*tsm.c_prod_mat(dot(MDY_, U))
-    # Cyy eqn
-    # Cxx
-    BPFEQNS[vecLen2:2*vecLen2, 0:vecLen2] = 0
-    # Cyy
-    BPFEQNS[vecLen2:2*vecLen2, vecLen2:2*vecLen2] = Nu*MDX_ - VGRAD_\
-                                     -oneOverWi*II_ + 2.*tsm.c_prod_mat(dot(MDY_, V))
-    # Cxy
-    BPFEQNS[vecLen2:2*vecLen2, 2*vecLen2:3*vecLen2] = 2.*tsm.c_prod_mat(dot(MDX_, V))
-    #Cxy eqn
-    # Cxx
-    BPFEQNS[2*vecLen2:3*vecLen2, 0:vecLen2] = tsm.c_prod_mat(dot(MDX_, V))
-    # Cyy 
-    BPFEQNS[2*vecLen2:3*vecLen2, vecLen2:2*vecLen2] = tsm.c_prod_mat(dot(MDY_, U))
-    # Cxy
-    BPFEQNS[2*vecLen2:3*vecLen2, 2*vecLen2:3*vecLen2] = Nu*MDX_ - VGRAD_ \
-            -oneOverWi*II_ 
-
-    RHS = zeros(3*vecLen2, dtype='D')
-    RHS[0] = -oneOverWi
-    RHS[vecLen2] = -oneOverWi
-    RHS[2*vecLen2:3*vecLen2] = 0
-
-    soln = linalg.solve(BPFEQNS, RHS)
-
-    Cxx = soln[0:vecLen2]
-    Cyy = soln[vecLen2:2*vecLen2]
-    Cxy = soln[2*vecLen2:3*vecLen2]
-
-    tsm.initTSM(N_=N, M_=M, kx_=kx)
-
-    print 'psi shape', shape(PSI)
-
-    PSI = decrease_resolution(PSI,Nhi,Mhi,N,M)
-    Cxx = decrease_resolution(Cxx,Nhi,Mhi,N,M)
-    Cyy = decrease_resolution(Cyy,Nhi,Mhi,N,M)
-    Cxy = decrease_resolution(Cxy,Nhi,Mhi,N,M)
-
-    print 'psi shape', shape(PSI)
-
-    return Cxx, Cyy, Cxy
-
 
 def increase_resolution(vec, NOld, MOld, N_, M_):
     """increase resolution from Nold, Mold to N, M and return the higher res
@@ -193,10 +131,129 @@ def iplct_euler_step(stressVec, dt):
 
     return SVNew
 
-def solve_eqns(stressVec):
+def form_operators(_dt):
+    """
+    Make operators according to the timestep, _dt.
+    """
+
+    PsiOpInvList = []
+    for i in range(N):
+        n = i-N
+
+        PSIOP = zeros((2*M, 2*M), dtype='complex')
+        SLAPLAC = -n*n*kx*kx*SII + SMDYY
+
+        PSIOP[0:M, 0:M] = 0
+        PSIOP[0:M, M:2*M] = Re*SII - 0.5*beta*_dt*SLAPLAC
+
+        PSIOP[M:2*M, 0:M] = SLAPLAC
+        PSIOP[M:2*M, M:2*M] = -SII
+
+        # Apply BCs
+        # dypsi(+-1) = 0
+        PSIOP[M-2, :] = concatenate((DERIVTOP, zeros(M, dtype='complex')))
+        PSIOP[M-1, :] = concatenate((DERIVBOT, zeros(M, dtype='complex')))
+        
+        # dxpsi(+-1) = 0
+        PSIOP[2*M-2, :] = concatenate((BTOP, zeros(M, dtype='complex')))
+        PSIOP[2*M-1, :] = concatenate((BBOT, zeros(M, dtype='complex')))
+
+        # store the inverse of the relevent part of the matrix
+        PSIOP = linalg.inv(PSIOP)
+        PSIOP = PSIOP[0:M, 0:M]
+
+        PsiOpInvList.append(PSIOP)
+
+    del PSIOP
+
+    # zeroth mode
+    Psi0thOp = zeros((M,M), dtype='complex')
+    Psi0thOp = Re*SMDY - 0.5*_dt*beta*SMDYYY + 0j
+
+    # Apply BCs
+
+    # dypsi0(+-1) = 0
+    Psi0thOp[M-3, :] = DERIVTOP
+    Psi0thOp[M-2, :] = DERIVBOT
+    # psi0(-1) =  0
+    Psi0thOp[M-1, :] = BBOT
+
+    # compute lu factorisation, PSIOPLU blocks have l and u together, without
+    # diagonal elements of l. PSIOPPIV elements are pivot vectors for the columns.
+
+    Psi0thOp = linalg.lu_factor(Psi0thOp)
+
+    
+    return PsiOpInvList, Psi0thOp
+
+def step_PSI(PSIOld, PsiOpInvList, Psi0thOp, time, _dt):
+
+    """
+    Step the streamfunction forward _dt in time via the fancy semi-implicit
+    method.
+    """
+
+    # Make the vector for the RHS of the equations
+    U = dot(MDY, PSIOld)
+    V = - dot(MDX, PSIOld)    
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
+
+    # PSI
+    RHSVec = Re*dot(LAPLAC, PSIOld) \
+            + _dt*0.5*beta*dot(BIHARM, PSIOld) \
+            - _dt*Re*dot(MMU, dot(MDXLAPLAC, PSIOld)) \
+            - _dt*Re*dot(MMV, dot(MDYLAPLAC, PSIOld))\
+            + _dt*(1.-beta)*oneOverWi*(dot(MDXX, Cxy) \
+                    + dot(MDXY,(Cyy - Cxx)) \
+                    - dot(MDYY, Cxy) )
+
+    # Zeroth mode
+    RHSVec[N*M:(N+1)*M] = 0
+    RHSVec[N*M:(N+1)*M] = + Re*dot(MDY, PSIOld)[N*M:(N+1)*M] \
+              + _dt*0.5*beta*dot(MDYYY, PSIOld)[N*M:(N+1)*M] \
+              - _dt*Re*dot(dot(MMV, MDYY), PSIOld)[N*M:(N+1)*M] \
+              + _dt*(1.-beta)*oneOverWi*dot(MDY, Cxy)[N*M:(N+1)*M]
+    # TODO: work out the implications of having dependence on the current time
+    # rather than just the time step.
+    RHSVec[N*M] += 2*_dt*cos(omega*time + phase)
+    
+    # Apply BC's
+    for n in range (N+1): 
+        # dyPsi(+-1) = 0  
+        # Only impose the BC which is actually present in the inverse operator
+        # we are dealing with. Remember that half the Boundary Conditions were
+        # imposed on phi, which was accounted for implicitly when we ignored it.
+        RHSVec[n*M + M-2] = 0
+        RHSVec[n*M + M-1] = 0
+    del n
+
+    # dyPsi0(+-1) = 0
+    RHSVec[N*M + M-3] = 0
+    RHSVec[N*M + M-2] = 0
+
+    # Psi0(-1) = 0
+    RHSVec[N*M + M-1] = 0
+
+    # Take the time step
+
+    # PSI
+    lu0, piv0 = Psi0thOp
+    PSI[N*M:(N+1)*M] = linalg.lu_solve((lu0, piv0), RHSVec[N*M:(N+1)*M])
+
+    for n in range(N):
+        PSI[n*M:(n+1)*M] = dot(PsiOpInvList[n], RHSVec[n*M:(n+1)*M])
+    del n  
+ 
+    for n in range(N+1, 2*N+1):
+        PSI[n*M:(n+1)*M] = conj(PSI[(2*N-n)*M:(2*N-n+1)*M])
+
+    return PSI
+
+def solve_stress_eqns(PSI, stressVec):
     """
     Returns the time derivative of the stresses given the current state of the
-    flow.
+    flow. Uses the Streamfunction at the correct time.
     """
 
     CxxOld = stressVec[0:vecLen]
@@ -206,6 +263,18 @@ def solve_eqns(stressVec):
     MMCXX = tsm.c_prod_mat(CxxOld)
     MMCYY = tsm.c_prod_mat(CyyOld)
     MMCXY = tsm.c_prod_mat(CxyOld)
+
+    # SET UP VELOCITIES (inefficient, but at least it is correct) 
+    # TODO: Find a way to do this only once for streamfunction and stress
+    # calculations.
+
+    U = dot(MDY, PSI)
+    V = - dot(MDX, PSI)    
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
+
+    # set up gradient operator
+    VGRAD = dot(MMU, MDX) + dot(MMV, MDY)
 
     # Calculate polymeric stress components
     TxxOld = oneOverWi*CxxOld
@@ -236,10 +305,10 @@ def rk4_step(x_old, dt):
     time dependence. 
     """
 
-    k1 = dt*solve_eqns(x_old) 
-    k2 = dt*solve_eqns(x_old+k1/2.)
-    k3 = dt*solve_eqns(x_old+k2/2.)
-    k4 = dt*solve_eqns(x_old+k3)
+    k1 = dt*solve_stress_eqns(PSIOld, x_old) 
+    k2 = dt*solve_stress_eqns(PSIhalf, x_old+k1/2.)
+    k3 = dt*solve_stress_eqns(PSIhalf, x_old+k2/2.)
+    k4 = dt*solve_stress_eqns(PSI, x_old+k3)
 
     x_new = x_old + k1/6. + k2/3. + k3/3. + k4/6.
 
@@ -357,104 +426,53 @@ del j
 # The initial stream-function
 
 PSI = zeros(vecLen, dtype='complex')
+
 # Perturb first 3 Chebyshevs for linear stability
 #PSI[(N-1)*M:(N-1)*M + 3] = 1e-3#*(random.random(3) + 1.j*random.random(3))
 #PSI[(N+1)*M:(N+2)*M] = conjugate(PSI[(N-1)*M:N*M])
 
-#PSI[N*M]   += 2.0/3.0
-#PSI[N*M+1] += 3.0/4.0
-#PSI[N*M+2] += 0.0
-#PSI[N*M+3] += -1.0/12.0
+PSI[N*M]   += 2.0/3.0
+PSI[N*M+1] += 3.0/4.0
+PSI[N*M+2] += 0.0
+PSI[N*M+3] += -1.0/12.0
 
-PSI,Cxx,Cyy,Cxy,Nu = pickle.load(open(inFileName, 'r'))
+#PSI,Cxx,Cyy,Cxy,Nu = pickle.load(open(inFileName, 'r'))
 
-#PSIOld, Nu = pickle.load(open(inFileName, 'r'))
+# Initial Stress is Newtonian laminar base profile stress.
 
-#PSI = increase_resolution(PSIOld)
-#PSI = decrease_resolution(PSIOld)
-#PSI = PSIOld
-
-# Initial Stress is Newtonian base profile stress.
-
-#Cxx = zeros(vecLen, dtype='complex')
-#Cxx = 2*(Wi**2)*dot(MDYY, PSI))
-#Cxx[N*M] += 1.0
-#Cyy = zeros(vecLen, dtype='complex')
-#Cyy[N*M] += 1.0
-#Cxy = zeros(vecLen, dtype='complex')
-#Cxy = Wi*(dot(MDYY, PSI))
-
-# Initial stress is calculated from the streamfunction
-
-#Cxx, Cxy, Cyy = base_stress_profile(PSI)
+Cxx = zeros(vecLen, dtype='complex')
+Cxx = 2*(Wi**2)*dot(MDYY, PSI)
+Cxx[N*M] += 1.0
+Cyy = zeros(vecLen, dtype='complex')
+Cyy[N*M] += 1.0
+Cxy = zeros(vecLen, dtype='complex')
+Cxy = Wi*(dot(MDYY, PSI))
 
 stressOld = zeros(3*vecLen, dtype='D')
 stressOld[:vecLen] = Cxx
 stressOld[vecLen:2*vecLen] = Cyy
 stressOld[2*vecLen:3*vecLen] = Cxy
 
-
-
 # FORM THE STREAMFUNCTION OPERATORS
-PsiOpInvList = []
-for i in range(N):
-    n = i-N
 
-    PSIOP = zeros((2*M, 2*M), dtype='complex')
-    SLAPLAC = -n*n*kx*kx*SII + SMDYY
+# Form the full-step operators
+PsiOpInvListFull, Psi0thOpFull = form_operators(dt) 
 
-    PSIOP[0:M, 0:M] = 0
-    PSIOP[0:M, M:2*M] = Re*SII - 0.5*beta*dt*SLAPLAC
+# Form the half-step operators
+PsiOpInvListHalf, Psi0thOpHalf = form_operators(dt/2.) 
 
-    PSIOP[M:2*M, 0:M] = SLAPLAC
-    PSIOP[M:2*M, M:2*M] = -SII
-
-    # Apply BCs
-    # dypsi(+-1) = 0
-    PSIOP[M-2, :] = concatenate((DERIVTOP, zeros(M, dtype='complex')))
-    PSIOP[M-1, :] = concatenate((DERIVBOT, zeros(M, dtype='complex')))
-    
-    # dxpsi(+-1) = 0
-    PSIOP[2*M-2, :] = concatenate((BTOP, zeros(M, dtype='complex')))
-    PSIOP[2*M-1, :] = concatenate((BBOT, zeros(M, dtype='complex')))
-
-    # store the inverse of the relevent part of the matrix
-    PSIOP = linalg.inv(PSIOP)
-    PSIOP = PSIOP[0:M, 0:M]
-
-    PsiOpInvList.append(PSIOP)
-
-del PSIOP
-
-# zeroth mode
-Psi0thOp = zeros((M,M), dtype='complex')
-Psi0thOp = Re*SMDY - 0.5*dt*beta*SMDYYY + 0j
-
-# Apply BCs
-
-# dypsi0(+-1) = 0
-Psi0thOp[M-3, :] = DERIVTOP
-Psi0thOp[M-2, :] = DERIVBOT
-# psi0(-1) =  0
-Psi0thOp[M-1, :] = BBOT
-
-# compute lu factorisation, PSIOPLU blocks have l and u together, without
-# diagonal elements of l. PSIOPPIV elements are pivot vectors for the columns.
-
-
-lu0, piv0 = linalg.lu_factor(Psi0thOp)
-
-# # ITERATE THE FLOW PROFILE
+## INITIALISE BEFORE THE LOOP
 
 RHSVec = zeros(vecLen, dtype='complex')
-
-# form a list of times
-timesList = r_[dt:dt*numTimeSteps:dt]
-
 # open the files
 traceOutFp = open(outFileNameTrace, 'w')
 psiSeriesFp = open(outFileNameTime, 'w')
 pickle.dump((PSI, Cxx, Cyy, Cxy), psiSeriesFp)
+
+# form a list of times
+timesList = r_[dt:dt*numTimeSteps:dt]
+
+## ITERATE THE FLOW PROFILE
 
 print """
 Beginning Time Iteration:
@@ -462,65 +480,17 @@ Beginning Time Iteration:
 
 """
 for tindx, currTime in enumerate(timesList):
+
     PSIOld = copy(PSI)
     CxxOld = copy(Cxx)
     CyyOld = copy(Cyy)
     CxyOld = copy(Cxy)
     
-    # Make the vector for the RHS of the equations
-    U = dot(MDY, PSIOld)
-    V = - dot(MDX, PSIOld)    
-    MMU = tsm.c_prod_mat(U)
-    MMV = tsm.c_prod_mat(V)
+    # Step PSI to t + dt/2
+    PSIhalf = step_PSI(PSIOld, PsiOpInvListHalf, Psi0thOpHalf, currTime, dt/2.)
 
-    # PSI
-    RHSVec = Re*dot(LAPLAC, PSIOld) \
-            + dt*0.5*beta*dot(BIHARM, PSIOld) \
-            - dt*Re*dot(MMU, dot(MDXLAPLAC, PSIOld)) \
-            - dt*Re*dot(MMV, dot(MDYLAPLAC, PSIOld))\
-            + dt*(1.-beta)*oneOverWi*(dot(MDXX, Cxy) \
-                    + dot(MDXY,(Cyy - Cxx)) \
-                    - dot(MDYY, Cxy) )
-
-    # Zeroth mode
-    RHSVec[N*M:(N+1)*M] = 0
-    RHSVec[N*M:(N+1)*M] = + Re*dot(MDY, PSIOld)[N*M:(N+1)*M] \
-              + dt*0.5*beta*dot(MDYYY, PSIOld)[N*M:(N+1)*M] \
-              - dt*Re*dot(dot(MMV, MDYY), PSIOld)[N*M:(N+1)*M] \
-              + dt*(1.-beta)*oneOverWi*dot(MDY, Cxy)[N*M:(N+1)*M]
-    RHSVec[N*M] += dt*2
-    
-    # Apply BC's
-    for n in range (N+1): 
-        # dyPsi(+-1) = 0  
-        # Only impose the BC which is actually present in the inverse operator
-        # we are dealing with. Remember that half the Boundary Conditions were
-        # imposed on phi, which was accounted for implicitly when we ignored it.
-        RHSVec[n*M + M-2] = 0
-        RHSVec[n*M + M-1] = 0
-    del n
-
-    # dyPsi0(+-1) = 0
-    RHSVec[N*M + M-3] = 0
-    RHSVec[N*M + M-2] = 0
-
-    # Psi0(-1) = 0
-    RHSVec[N*M + M-1] = 0
-
-    # Take the time step
-
-    # PSI
-    PSI[N*M:(N+1)*M] = linalg.lu_solve((lu0, piv0), RHSVec[N*M:(N+1)*M])
-
-    for n in range(N):
-        PSI[n*M:(n+1)*M] = dot(PsiOpInvList[n], RHSVec[n*M:(n+1)*M])
-    del n  
- 
-    for n in range(N+1, 2*N+1):
-        PSI[n*M:(n+1)*M] = conj(PSI[(2*N-n)*M:(2*N-n+1)*M])
- 
-    # set up gradient operator
-    VGRAD = dot(MMU, MDX) + dot(MMV, MDY)
+    # Step PSI to t + dt
+    PSI = step_PSI(PSIOld, PsiOpInvListFull, Psi0thOpFull, currTime, dt)
 
     # Step the Stresses
     stressOld[:vecLen] = CxxOld
@@ -533,8 +503,13 @@ for tindx, currTime in enumerate(timesList):
     Cyy = stressNew[vecLen:2*vecLen]
     Cxy = stressNew[2*vecLen:3*vecLen]
 
-    
     # KE outputted is always that of the previous step
+
+    U = dot(MDY, PSIOld)
+    V = - dot(MDX, PSIOld)    
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
+
     Usq = dot(MMU,U) + dot(MMV,V)
     KE0 = (15./8.)*0.5*real(dot(INTY, Usq[N*M:(N+1)*M]))
     Usq1 = Usq[(N-1)*M:N*M]*exp(1.j*kx) + Usq[(N+1)*M:(N+2)*M]*exp(-1.j*kx)
