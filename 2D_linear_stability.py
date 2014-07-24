@@ -1,7 +1,7 @@
 #----------------------------------------------------------------------------#
 #   Fully spectral linear stability analysis of a 2D exact solution
 #
-#   Last modified: Wed 23 Jul 15:57:17 2014
+#   Last modified: Thu 24 Jul 17:13:39 2014
 #
 #
 #----------------------------------------------------------------------------#
@@ -9,7 +9,7 @@
 """
 Code to perform linear stability analysis for a 2D streamwise-wall-normal
 channel flow. Input ought to be in the streamfunction form. Output will be an
-eigenvalue spectrum or a eigenfunction profile depending on the commandline
+eigenvalue spectrum or an eigenfunction profile depending on the commandline
 arguments provided.
 """
 
@@ -87,24 +87,24 @@ def mk_bigM():
 
     ################Navier Stokes x direction:###############
     #*u
-    bigM[2*vLen:3*vLen, 0:vLen] = + Re*Nu*MDX - Re*GRAD - Re*MMDXU \
-                                         + beta*LAPLACIAN
+    bigM[0:vLen, 0:vLen] = + Re*Nu*MDX - Re*GRAD - Re*MMDXU \
+                           + beta*LAPLACIAN
     #*v
-    bigM[2*vLen:3*vLen, vLen:2*vLen] = -Re*MMDYU
+    bigM[0:vLen, vLen:2*vLen] = -Re*MMDYU
     #*w
     #*p
-    bigM[2*vLen:3*vLen, 3*vLen:4*vLen] = - MDX
+    bigM[0:vLen, 3*vLen:4*vLen] = - MDX
     #cxx
-    bigM[2*vLen:3*vLen, 4*vLen:5*vLen] = (1-beta)*oneOverWi*MDX
+    bigM[0:vLen, 4*vLen:5*vLen] = (1-beta)*oneOverWi*MDX
     #cyy
     #czz
     #cxy
-    bigM[2*vLen:3*vLen, 7*vLen:8*vLen] = (1-beta)*oneOverWi*MDY
+    bigM[0:vLen, 7*vLen:8*vLen] = (1-beta)*oneOverWi*MDY
 
     #cxz
-    bigM[2*vLen:3*vLen, 8*vLen:9*vLen] = (1-beta)*oneOverWi*1.j*kz*eye(vLen,vLen)
+    bigM[0:vLen, 8*vLen:9*vLen] = (1-beta)*oneOverWi*1.j*kz*eye(vLen,vLen)
     #cyz
-    bigM[2*vLen:3*vLen, 9*vLen:10*vLen] = 0 
+    bigM[0:vLen, 9*vLen:10*vLen] = 0 
 
     ################Navier Stokes y direction:###############
     #*u
@@ -128,24 +128,24 @@ def mk_bigM():
     ################Navier Stokes z direction:###############
 
     #*u
-    bigM[0:vLen, 0:vLen] = - Re*MMDXW
+    bigM[2*vLen:3*vLen, 0:vLen] = - Re*MMDXW
     #*v
-    bigM[0:vLen, vLen:2*vLen] = - Re*MMDYW
+    bigM[2*vLen:3*vLen, vLen:2*vLen] = - Re*MMDYW
     #*w
-    bigM[0:vLen, 2*vLen:3*vLen] = Re*Nu*MDX - Re*GRAD + beta*LAPLACIAN
+    bigM[2*vLen:3*vLen, 2*vLen:3*vLen] = Re*Nu*MDX - Re*GRAD + beta*LAPLACIAN
     #*p
-    bigM[0:vLen, 3*vLen:4*vLen] = - 1.j*kz*eye(vLen,vLen)
+    bigM[2*vLen:3*vLen, 3*vLen:4*vLen] = - 1.j*kz*eye(vLen,vLen)
     #cxx
-    bigM[0:vLen, 4*vLen:5*vLen] = 0
+    bigM[2*vLen:3*vLen, 4*vLen:5*vLen] = 0
     #cyy
     #czz
-    bigM[0:vLen, 6*vLen:7*vLen] = (1-beta)*oneOverWi*1.j*kz*eye(vLen,vLen)
+    bigM[2*vLen:3*vLen, 6*vLen:7*vLen] = (1-beta)*oneOverWi*1.j*kz*eye(vLen,vLen)
     #cxy
-    bigM[0:vLen, 7*vLen:8*vLen] = 0
+    bigM[2*vLen:3*vLen, 7*vLen:8*vLen] = 0
     #cxz
-    bigM[0:vLen, 8*vLen:9*vLen] = (1-beta)*oneOverWi*MDX
+    bigM[2*vLen:3*vLen, 8*vLen:9*vLen] = (1-beta)*oneOverWi*MDX
     #cyz
-    bigM[0:vLen, 9*vLen:10*vLen] = (1-beta)*oneOverWi*MDY
+    bigM[2*vLen:3*vLen, 9*vLen:10*vLen] = (1-beta)*oneOverWi*MDY
 
     ################Incompressability equation:###############
     #*u
@@ -165,30 +165,30 @@ def mk_bigM():
     ################cxx equation:####################
 
     #*u
-    bigM[6*vLen:7*vLen, 0*vLen:vLen] =  -tsm.c_prod_mat(dot(MDX,Cxx)) + 2.j*kz*MMCXZ \
-                                       +  2*dot(MMCYZ,MDY) + 2*dot(MMCZZ,MDX)
+    bigM[4*vLen:5*vLen, 0*vLen:vLen] = - tsm.c_prod_mat(dot(MDX,Cxx)) + 2.j*kz*MMCXZ \
+                                       +  2*dot(MMCXY,MDY) + 2*dot(MMCXX,MDX)
     #*v
-    bigM[6*vLen:7*vLen, vLen:2*vLen] = -tsm.c_prod_mat(dot(MDY,Cxx))
+    bigM[4*vLen:5*vLen, vLen:2*vLen] = -tsm.c_prod_mat(dot(MDY,Cxx))
     #*w
     #*p
     #cxx
-    bigM[6*vLen:7*vLen, 4*vLen:5*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD \
+    bigM[4*vLen:5*vLen, 4*vLen:5*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD \
                                        + 2*MMDXU 
     #cyy
     #czz
-    bigM[6*vLen:7*vLen, 6*vLen:7*vLen] = 0
+    bigM[4*vLen:5*vLen, 6*vLen:7*vLen] = 0
     #cxy
-    bigM[6*vLen:7*vLen, 7*vLen:8*vLen] = 2*MMDYU
+    bigM[4*vLen:5*vLen, 7*vLen:8*vLen] = 2*MMDYU
     #cxz
     #cyz
-    bigM[6*vLen:7*vLen, 9*vLen:10*vLen] = 0
+    bigM[4*vLen:5*vLen, 9*vLen:10*vLen] = 0
 
     ################cyy equation:####################
     #*u
     bigM[5*vLen:6*vLen, 0:vLen] =  -tsm.c_prod_mat(dot(MDX,Cyy))
     #*v
-    bigM[5*vLen:6*vLen, vLen:2*vLen] = +2j*kz*MMCXY +2*dot(MMCYY,MDY) \
-                                     + 2*dot(MMCYZ,MDX) \
+    bigM[5*vLen:6*vLen, vLen:2*vLen] = +2j*kz*MMCYZ +2*dot(MMCYY,MDY) \
+                                     + 2*dot(MMCXY,MDX) \
                                      - tsm.c_prod_mat(dot(MDY,Cyy))
     #*w
     #*p
@@ -205,53 +205,53 @@ def mk_bigM():
     ################czz equation:####################
 
     #*u
-    bigM[4*vLen:5*vLen, 0:vLen] = 2.j*kz*MMCXX + 2*dot(MMCXY,MDY) \
-                                + 2*dot(MMCXZ,MDX)
+    bigM[6*vLen:7*vLen, 0:vLen] = -tsm.c_prod_mat(dot(MDX,Czz))
     #*v
-    bigM[4*vLen:5*vLen, vLen:2*vLen] = -tsm.c_prod_mat(dot(MDY,Czz)) 
+    bigM[6*vLen:7*vLen, vLen:2*vLen] = -tsm.c_prod_mat(dot(MDY,Czz)) 
     #*w
-    bigM[4*vLen:5*vLen, 2*vLen:3*vLen] = -tsm.c_prod_mat(dot(MDX,Czz)) 
+    bigM[6*vLen:7*vLen, 2*vLen:3*vLen] = 2.j*kz*MMCZZ + 2*dot(MMCYZ,MDY) \
+                                        + 2*dot(MMCXZ,MDX) 
     #*p
     #cxx
     #cyy
     #czz
-    bigM[4*vLen:5*vLen, 6*vLen:7*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
+    bigM[6*vLen:7*vLen, 6*vLen:7*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
     #cxy
-    bigM[4*vLen:5*vLen, 7*vLen:8*vLen] = 2*MMDYW
     #cxz
-    bigM[4*vLen:5*vLen, 8*vLen:9*vLen] = 2*MMDXW
+    bigM[6*vLen:7*vLen, 8*vLen:9*vLen] = 2*MMDXW
     #cyz
+    bigM[6*vLen:7*vLen, 9*vLen:10*vLen] = 2*MMDYW
     
     ################cxy equation:####################
 
     #*u
-    bigM[9*vLen:10*vLen, 0:vLen] =- tsm.c_prod_mat(dot(MDX,Cxy)) + 1.j*kz*MMCXY \
-                                          + dot(MMCYY,MDY) 
+    bigM[7*vLen:8*vLen, 0:vLen] = - tsm.c_prod_mat(dot(MDX,Cxy)) + 1.j*kz*MMCYZ \
+                                         + dot(MMCYY,MDY) 
     #*v
-    bigM[9*vLen:10*vLen, vLen:2*vLen] = - tsm.c_prod_mat(dot(MDY,Cxy)) + 1.j*kz*MMCXZ \
-                                        + dot(MMCZZ,MDX)
+    bigM[7*vLen:8*vLen, vLen:2*vLen] = - tsm.c_prod_mat(dot(MDY,Cxy)) + 1.j*kz*MMCXZ \
+                                       + dot(MMCXX,MDX)
     #*w
-    bigM[9*vLen:10*vLen, 2*vLen:3*vLen] = -1.j*kz*MMCYZ
+    bigM[7*vLen:8*vLen, 2*vLen:3*vLen] = -1.j*kz*MMCXY
     #*p
     #cxx
-    bigM[9*vLen:10*vLen, 4*vLen:5*vLen] =  MMDXV
+    bigM[7*vLen:8*vLen, 4*vLen:5*vLen] =  MMDXV
     #cyy
-    bigM[9*vLen:10*vLen, 5*vLen:6*vLen] =  MMDYU
+    bigM[7*vLen:8*vLen, 5*vLen:6*vLen] =  MMDYU
     #czz
     #cxy
-    bigM[9*vLen:10*vLen, 7*vLen:8*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
+    bigM[7*vLen:8*vLen, 7*vLen:8*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
     #cxz
     #cyz
 
     ################cxz equation:####################
     #*u
-    bigM[8*vLen:9*vLen, 0:vLen] = - tsm.c_prod_mat(dot(MDX,Cxz)) + 1.j*kz*MMCXX\
-                                         + dot(MMCXY,MDY) 
+    bigM[8*vLen:9*vLen, 0:vLen] = - tsm.c_prod_mat(dot(MDX,Cxz)) + 1.j*kz*MMCZZ\
+                                         + dot(MMCYZ,MDY) 
     #*v
     bigM[8*vLen:9*vLen, vLen:2*vLen] = - tsm.c_prod_mat(dot(MDY,Cxz)) \
                                       - dot(MMCXZ,MDY)
     #*w
-    bigM[8*vLen:9*vLen, 2*vLen:3*vLen] = + dot(MMCYZ,MDY) + dot(MMCZZ,MDX)
+    bigM[8*vLen:9*vLen, 2*vLen:3*vLen] = + dot(MMCXY,MDY) + dot(MMCXX,MDX)
     #*p
     #cxx
     bigM[8*vLen:9*vLen, 4*vLen:5*vLen] = MMDXW
@@ -268,24 +268,24 @@ def mk_bigM():
     ###############cyz equation:####################
 
     #*u
-    bigM[7*vLen:8*vLen, 0:vLen] = - tsm.c_prod_mat(dot(MDX,Cyz)) \
-                                        - dot(MMCXY,MDX)
+    bigM[9*vLen:10*vLen, 0:vLen] = - tsm.c_prod_mat(dot(MDX,Cyz)) \
+                                         - dot(MMCYZ,MDX)
     #*v
-    bigM[7*vLen:8*vLen, vLen:2*vLen] = -tsm.c_prod_mat(dot(MDY,Cyz)) + 1.j*kz*MMCXX \
-                                       + dot(MMCXZ,MDX)
+    bigM[9*vLen:10*vLen, vLen:2*vLen] = -tsm.c_prod_mat(dot(MDY,Cyz)) + 1.j*kz*MMCZZ \
+                                        + dot(MMCXZ,MDX)
     #*w
-    bigM[7*vLen:8*vLen, 2*vLen:3*vLen] =  + dot(MMCYY,MDY) + dot(MMCYZ,MDX)
+    bigM[9*vLen:10*vLen, 2*vLen:3*vLen] =  + dot(MMCYY,MDY) + dot(MMCXY,MDX)
     #*p
     #cxx
     #cyy
-    bigM[7*vLen:8*vLen, 5*vLen:6*vLen] =  MMDYW
+    bigM[9*vLen:10*vLen, 5*vLen:6*vLen] =  MMDYW
     #czz
     #cxy
-    bigM[7*vLen:8*vLen, 7*vLen:8*vLen] =  MMDXW
+    bigM[9*vLen:10*vLen, 7*vLen:8*vLen] =  MMDXW
     #cxz
-    bigM[7*vLen:8*vLen, 8*vLen:9*vLen] =  MMDXV
+    bigM[9*vLen:10*vLen, 8*vLen:9*vLen] =  MMDXV
     #cyz
-    bigM[7*vLen:8*vLen, 9*vLen:10*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD\
+    bigM[9*vLen:10*vLen, 9*vLen:10*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD\
                                          + MMDYV
     
 
