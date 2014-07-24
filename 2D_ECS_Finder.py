@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue 10 Jun 15:24:58 2014
+#   Last modified: Wed 23 Jul 11:57:21 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -51,6 +51,19 @@ argparser.add_argument("-Wi", type=float, default=Wi,
 argparser.add_argument("-kx", type=float, default=kx, 
                 help='Override wavenumber of the config file')
 
+argparser.add_argument("-NOld", type=int, default=N, 
+                help='Override Number of Fourier modes given in the config file')
+argparser.add_argument("-MOld", type=int, default=M, 
+                help='Override Number of Chebyshev modes in the config file')
+argparser.add_argument("-ReOld", type=float, default=Re, 
+                help="Override Reynold's number in the config file") 
+argparser.add_argument("-bOld", type=float, default=beta, 
+                help='Override beta of the config file')
+argparser.add_argument("-WiOld", type=float, default=Wi, 
+                help='Override Weissenberg number of the config file')
+argparser.add_argument("-kxOld", type=float, default=kx, 
+                help='Override wavenumber of the config file')
+
 args = argparser.parse_args()
 N = args.N 
 M = args.M
@@ -61,12 +74,13 @@ kx = args.kx
 
 consts = {'N':N, 'M':M, 'kx':kx, 'Re':Re, 'b':beta, 'Wi':Wi}
 
-NOld = N#3 
-MOld = M#40
-kxOld = kx#+0.01
-ReOld = Re
-bOld = beta#-0.7
-WiOld = Wi-1.0
+NOld = args.NOld 
+MOld = args.MOld
+kxOld = args.kxOld
+ReOld = args.ReOld
+bOld = args.bOld
+WiOld = args.WiOld
+
 oldConsts = {'N':NOld, 'M':MOld, 'kx':kxOld, 'Re':ReOld, 'b':bOld, 'Wi':WiOld}
 inFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**oldConsts)
 outFileName = "pf-N{N}-M{M}-kx{kx}-Re{Re}-b{b}-Wi{Wi}.pickle".format(**consts)
@@ -674,10 +688,11 @@ del j
 #PSI[N*M+3] += -1.0/12.0
 #Nu  = 0.35
 
-#inFp = open('pf-N3-M30-kx1.31-Re3000.0.pickle', 'r')
-#PSIOld, Nu = pickle.load(inFp)
-
-#PSI, Cxx, Cyy, Cxy, Nu = pickle.load(open('test.pickle')) 
+#inFp = open('pf-N7-M50-kx1.31-Re3000.0.pickle', 'r')
+#PSI, Nu = pickle.load(inFp)
+#Cxx = zeros(vecLen, dtype='D')
+#Cyy = zeros(vecLen, dtype='D')
+#Cxy = zeros(vecLen, dtype='D')
 
 PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
 
@@ -685,6 +700,11 @@ PSI = increase_resolution(PSIOld)
 Cxx = increase_resolution(CxxOld)
 Cyy = increase_resolution(CyyOld)
 Cxy = increase_resolution(CxyOld)
+
+# Trying to jump to top branch
+#PSI[N*M:N*M + 2] += (random.random(2))*1e-3
+#PSI[(N+1)*M:(N+1)*M + 2] += (random.random(2) + 1.j*random.random(2))*1e-3
+#PSI[(N-1)*M:N*M] = conj(PSI[(N+1)*M:(N+2)*M])
 
 # Effort to write a function to return newtonian stresses given a profile don't
 # think it works.
@@ -702,9 +722,6 @@ xVec[2*vecLen:3*vecLen] = Cyy
 xVec[3*vecLen:4*vecLen] = Cxy
 xVec[4*vecLen]          = Nu 
 
-
-
-
 # Set only the imaginary part at a point to zero to constrain nu. I will choose
 # y = 0.5
 SPEEDCONDITION = zeros(M, dtype = 'complex')
@@ -714,16 +731,9 @@ for m in range(M):
 
 inv_jac = eye(4*vecLen+1, 4*vecLen +1) #linalg.inv(find_jacobian(xVec))
 
-xVec = old_newton(xVec)
+#xVec = old_newton(xVec)
 
-#residuals = solve_eq(xVec)
-
-#residuals[N*M:(N+1)*M] = 0
-#print 'norm of psi', linalg.norm(residuals[:vecLen])
-#print 'norm of psi0', linalg.norm(residuals[N*M:(N+1)*M])
-#exit(1)
-
-#xVec = line_search(solve_eq, find_jacobian, xVec)
+xVec = line_search(solve_eq, find_jacobian, xVec)
 
 
 #xVec = optimize.newton_krylov(solve_eq, xVec, inner_M=inv_jac, verbose=True)
