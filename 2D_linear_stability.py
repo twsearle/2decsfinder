@@ -1,7 +1,7 @@
 #----------------------------------------------------------------------------#
 #   Fully spectral linear stability analysis of a 2D exact solution
 #
-#   Last modified: Thu 24 Jul 17:13:39 2014
+#   Last modified: Fri 25 Jul 14:07:19 2014
 #
 #
 #----------------------------------------------------------------------------#
@@ -172,7 +172,7 @@ def mk_bigM():
     #*w
     #*p
     #cxx
-    bigM[4*vLen:5*vLen, 4*vLen:5*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD \
+    bigM[4*vLen:5*vLen, 4*vLen:5*vLen] = Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD \
                                        + 2*MMDXU 
     #cyy
     #czz
@@ -194,7 +194,7 @@ def mk_bigM():
     #*p
     #cxx
     #cyy
-    bigM[5*vLen:6*vLen, 5*vLen:6*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD \
+    bigM[5*vLen:6*vLen, 5*vLen:6*vLen] = Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD \
                                        + 2*MMDYV
     #czz
     #cxy
@@ -215,7 +215,7 @@ def mk_bigM():
     #cxx
     #cyy
     #czz
-    bigM[6*vLen:7*vLen, 6*vLen:7*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
+    bigM[6*vLen:7*vLen, 6*vLen:7*vLen] = Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
     #cxy
     #cxz
     bigM[6*vLen:7*vLen, 8*vLen:9*vLen] = 2*MMDXW
@@ -239,7 +239,7 @@ def mk_bigM():
     bigM[7*vLen:8*vLen, 5*vLen:6*vLen] =  MMDYU
     #czz
     #cxy
-    bigM[7*vLen:8*vLen, 7*vLen:8*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
+    bigM[7*vLen:8*vLen, 7*vLen:8*vLen] = Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD
     #cxz
     #cyz
 
@@ -260,7 +260,7 @@ def mk_bigM():
     #cxy
     bigM[8*vLen:9*vLen, 7*vLen:8*vLen] = MMDYW
     #cxz
-    bigM[8*vLen:9*vLen, 8*vLen:9*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD\
+    bigM[8*vLen:9*vLen, 8*vLen:9*vLen] = Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD\
                                          + MMDXU
     #cyz
     bigM[8*vLen:9*vLen, 9*vLen:10*vLen] =  MMDYU
@@ -285,7 +285,7 @@ def mk_bigM():
     #cxz
     bigM[9*vLen:10*vLen, 8*vLen:9*vLen] =  MMDXV
     #cyz
-    bigM[9*vLen:10*vLen, 9*vLen:10*vLen] = Re*Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD\
+    bigM[9*vLen:10*vLen, 9*vLen:10*vLen] = Nu*MDX - oneOverWi*eye(vLen,vLen) - GRAD\
                                          + MMDYV
     
 
