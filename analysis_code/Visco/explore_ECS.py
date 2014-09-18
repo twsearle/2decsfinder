@@ -153,6 +153,6 @@ KE0 = (15.0/8.0)*real(KE0)
 KE1 = (15.0/8.0)*linalg.norm(0.5*dot(INTY, Usq1))
 print 'Kinetic energy of 0th mode is: ', KE0
 print 'Kinetic energy of 1st mode is: ', KE1
-fp = open('trace.txt', 'a')
-fp.write("{0} {1} {2}\n".format(Re, kx, KE0))
-fp.close()
+#fp = open('trace.txt', 'a')
+#fp.write("{0} {1} {2}\n".format(Re, kx, KE0))
+#fp.close()
