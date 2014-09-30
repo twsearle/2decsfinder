@@ -153,6 +153,23 @@ KE0 = (15.0/8.0)*real(KE0)
 KE1 = (15.0/8.0)*linalg.norm(0.5*dot(INTY, Usq1))
 print 'Kinetic energy of 0th mode is: ', KE0
 print 'Kinetic energy of 1st mode is: ', KE1
-#fp = open('trace.txt', 'a')
-#fp.write("{0} {1} {2}\n".format(Re, kx, KE0))
-#fp.close()
+
+
+U0sq = dot(tsm.c_cheb_prod_mat(U[N*M:(N+1)*M]), U[N*M:(N+1)*M])
+KE0A = (15.0/16.0)*dot(INTY, U0sq)
+
+URsq = zeros(M, dtype='complex')
+
+for i_ in range(N):
+    n_ = N-i_
+    URsq += dot(tsm.c_cheb_prod_mat(1.j*n_*kx*U[i_*M:(i_+1)*M]),
+                -1.j*n_*kx*U[(2*N-i_)*M:(2*N+1-i_)*M])
+del i_
+
+KERA = (15.0/16.0)*dot(INTY, URsq) 
+
+print "Alexander's KE0: ", KE0A
+print "Alexander's KErest: ", KERA
+fp = open('trace.txt', 'a')
+fp.write("{0} {1} {2} {3}\n".format(Re, kx, KE0, real(Nu)))
+fp.close()

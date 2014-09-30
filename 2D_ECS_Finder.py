@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Wed 23 Jul 11:57:21 2014
+#   Last modified: Mon 22 Sep 2014 10:36:52 BST
 #
 #-----------------------------------------------------------------------------
 
@@ -12,7 +12,6 @@ Newton-Rhaphson and the Oldroyd-B model."""
 from scipy import *
 from scipy import linalg
 from scipy import optimize
-import matplotlib.pyplot as plt
 import cPickle as pickle
 import ConfigParser
 import argparse
@@ -384,6 +383,19 @@ def decrease_resolution(vec):
 
     return lowNMvec
 
+def decide_resolution(vec):
+    """
+    Choose to increase or decrease resolution depending on values of N,M
+    NOld,MOld.
+    """
+    if N >= NOld and M >= MOld:
+        ovec = increase_resolution(vec)
+
+    elif N <= NOld and M <= MOld:
+        ovec = decrease_resolution(vec)
+
+    return ovec
+
 def mk_cheb_int():
     integrator = zeros(M, dtype='d')
     for m in range(0,M,2):
@@ -696,10 +708,10 @@ del j
 
 PSIOld, CxxOld, CyyOld, CxyOld, Nu = pickle.load(open(inFileName, 'r'))
 
-PSI = increase_resolution(PSIOld)
-Cxx = increase_resolution(CxxOld)
-Cyy = increase_resolution(CyyOld)
-Cxy = increase_resolution(CxyOld)
+PSI = decide_resolution(PSIOld)
+Cxx = decide_resolution(CxxOld)
+Cyy = decide_resolution(CyyOld)
+Cxy = decide_resolution(CxyOld)
 
 # Trying to jump to top branch
 #PSI[N*M:N*M + 2] += (random.random(2))*1e-3
