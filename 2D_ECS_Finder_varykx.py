@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D ECS finder
 #
-#   Last modified: Tue 10 Jun 15:28:49 2014
+#   Last modified: Thu 18 Sep 2014 18:56:25 BST
 #
 #-----------------------------------------------------------------------------
 
@@ -12,7 +12,6 @@ Newton-Rhaphson and the Oldroyd-B model."""
 from scipy import *
 from scipy import linalg
 from scipy import optimize
-import matplotlib.pyplot as plt
 import cPickle as pickle
 import ConfigParser
 import argparse
