@@ -1,7 +1,7 @@
 #----------------------------------------------------------------------------#
 #   Fully spectral linear stability analysis of a 2D exact solution
 #
-#   Last modified: Fri 25 Jul 14:07:19 2014
+#   Last modified: Tue  7 Oct 12:45:15 2014
 #
 #
 #----------------------------------------------------------------------------#
@@ -60,6 +60,8 @@ argparser.add_argument("-kz", type=float, default=cfgkz,
 argparser.add_argument("-evecs", 
                 help = 'output eigenvectors instead of eigenvalues',
                        action="store_true")
+argparser.add_argument("-NumEvecs", type=int, default=5, 
+help="If eigenvectors are to be outputted, change the number of leading eigenvectors")
 
 args = argparser.parse_args()
 N = args.N 
@@ -398,30 +400,44 @@ if args.evecs:
         if (real(eigenvals[i]) > 0) and (real(eigenvals[i]) < 50):
             large_evs[i] = real(eigenvals[i])
     del i
+    
+    # sort the eigenvalues in large_evs so that the last NumEvecs are the
+    # largest
 
-    lead_index = argmax(large_evs)
-
-    du =   evecs[           :(2*N+1)*M,   lead_index]
-    dv =   evecs[  (2*N+1)*M:2*(2*N+1)*M, lead_index]
-    dw =   evecs[2*(2*N+1)*M:3*(2*N+1)*M, lead_index]
-    dp =   evecs[3*(2*N+1)*M:4*(2*N+1)*M, lead_index]
-    dcxx = evecs[4*(2*N+1)*M:5*(2*N+1)*M, lead_index]
-    dcyy = evecs[5*(2*N+1)*M:6*(2*N+1)*M, lead_index]
-    dczz = evecs[6*(2*N+1)*M:7*(2*N+1)*M, lead_index]
-    dcxy = evecs[7*(2*N+1)*M:8*(2*N+1)*M, lead_index]
-    dcxz = evecs[8*(2*N+1)*M:9*(2*N+1)*M, lead_index]
-    dcyz = evecs[9*(2*N+1)*M:10*(2*N+1)*M, lead_index]
+    large_evs = sort(large_evs)
 
     eigarray = vstack((real(eigenvals), imag(eigenvals))).T
     #remove nans and infs from eigenvalues
     #eigarray = eigarray[~isnan(eigarray).any(1), :]
     #eigarray = eigarray[~isinf(eigarray).any(1), :]
 
-    print 'chosen eig: {e}'.format(e=lead_index)
     savetxt('ev-kz{kz}{fn}.dat'.format(kz=kz, fn=filename[:-7],
-                                                     ), eigarray)
+                                                 ), eigarray)
 
-    pickle.dump((du,dv,dw,dp,dcxx,dcyy,dczz,dcxy,dcxz,dcyz), open('full-evecs-kz{kz}{fn}'.format(kz=kz,fn=filename), 'w'))
+    for evec_index in range(args.NumEvecs): 
+
+        len_levs = len(large_evs)
+        lead_index = large_evs[len_levs - 1 - evec_index]
+
+        print 'chosen eig: {e}'.format(e=lead_index)
+        du =   evecs[           :(2*N+1)*M,   lead_index]
+        dv =   evecs[  (2*N+1)*M:2*(2*N+1)*M, lead_index]
+        dw =   evecs[2*(2*N+1)*M:3*(2*N+1)*M, lead_index]
+        dp =   evecs[3*(2*N+1)*M:4*(2*N+1)*M, lead_index]
+        dcxx = evecs[4*(2*N+1)*M:5*(2*N+1)*M, lead_index]
+        dcyy = evecs[5*(2*N+1)*M:6*(2*N+1)*M, lead_index]
+        dczz = evecs[6*(2*N+1)*M:7*(2*N+1)*M, lead_index]
+        dcxy = evecs[7*(2*N+1)*M:8*(2*N+1)*M, lead_index]
+        dcxz = evecs[8*(2*N+1)*M:9*(2*N+1)*M, lead_index]
+        dcyz = evecs[9*(2*N+1)*M:10*(2*N+1)*M, lead_index]
+
+        Nux = Nu
+        Nuz = eigarray[lead_index, 1] / kz
+
+        pickle.dump((Nux,Nuz,du,dv,dw,dp,dcxx,dcyy,dczz,dcxy,dcxz,dcyz), 
+                    open('full-evecs-{n}-kz{kz}{fn}'.format(n=evec_index, kz=kz,fn=filename), 'w'))
+
+
 
 else:
     # eigenvalues only
