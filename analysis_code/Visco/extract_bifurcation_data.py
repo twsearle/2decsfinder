@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------
 #   extract_birfurcation_data.py
-#   Last modified: Fri 26 Sep 15:09:02 2014
+#   Last modified: Mon  6 Oct 13:36:38 2014
 #
 #
 # -----------------------------------------------------------------------------
@@ -28,8 +28,8 @@ from matplotlib.font_manager import fontManager, FontProperties
 
 # SETTINGS ---------------------------------------------------------------------
 
-N = 3
-M = 40
+N = 8
+M = 50
 beta = 0.1
 Wi = 1.0
 
@@ -38,11 +38,12 @@ Wi = 1.0
 # FUNCTIONS
 
 def gen_list_pts_from_files(N, M, rootName):
-    print rootName + '*.dat'
+
     fileList = glob.glob(rootName + '*.dat')
 
     numKxPts = len(fileList)
     bothArr = []
+
     for filename in fileList:
         splitString = filename.split('-')
         if len(splitString) < 7:
@@ -60,7 +61,10 @@ def gen_list_pts_from_files(N, M, rootName):
         print filename, NFile, MFile, kx
 
         bothArr.append([filename, kx])
-    del filename
+
+    if bothArr == []:
+        print 'warning: no files found in this folder: ', rootName
+        return None
 
     bothArr.sort(key=operator.itemgetter(1))
     bothArr = array(bothArr)
@@ -96,22 +100,21 @@ def slice_by_Re(ptsArr, searchReVal):
     answer2 = []
     for a in answerArgs:
         answer2.append(a[0])
-    
-    if answer2 == []:
-        return answer2
+
+    if len(answer2) is 0: 
+        print 'Warning, looking at an Re with no points on one of the branches'
+        print answer2, type(answer2)
+        return None
 
     answer2 = array(answer2)
-
     return ptsArr[answer2, :]
 
 
 # MAIN
-print './N{0}_M{1}/lower_branch/cont-trace-'.format(N, M)
 
-botfileroot = 'N{0}_M{1}/lower_branch/cont-trace-'.format(N, M)
-topfileroot = 'N{0}_M{1}/upper_branch/cont-trace-'.format(N, M)
-botBranchPts = gen_list_pts_from_files(N, M, botfileroot)
-topBranchPts = gen_list_pts_from_files(N, M, topfileroot)
+botBranchPts = gen_list_pts_from_files(N, M,
+                                       'N{N}_M{M}/lower_branch/cont-trace-'.format(N=N, M=M))
+topBranchPts = gen_list_pts_from_files(N, M, 'N{N}_M{M}/upper_branch/cont-trace-'.format(N=N, M=M))
 
 ## The sort ##
 
@@ -137,19 +140,17 @@ ReList = unique(concatenate((topBranchPts[:,0], botBranchPts[:,0])))
 ReList.sort()
 
 branchesPts = zeros(3, dtype='d')
-
 for Re in ReList:
-
     tmpTop = slice_by_Re(topBranchPts, Re)
     tmpBot = slice_by_Re(botBranchPts, Re)
 
-    if (tmpTop == []) and (tmpBot == []):
-        pass
-    elif tmpTop == []:
-        branchesPts = vstack((branchesPts, tmpBot))
-    elif tmpBot == []:
+    if tmpTop is not None and tmpBot is None:
         branchesPts = vstack((branchesPts, tmpTop))
-    else:
+    if tmpTop is None and tmpBot is not None:
+        branchesPts = vstack((branchesPts, tmpBot))
+    if tmpTop is None and tmpBot is None:
+        pass
+    if tmpTop is not None and tmpBot is not None: 
         branchesPts = vstack((branchesPts, tmpTop, tmpBot))
 
 branchesPts = branchesPts[1:,:]
@@ -197,8 +198,8 @@ for xIndx in range(len(xi)):
         imArr[xIndx, yIndx] = zi[xIndx,yIndx]
 
 ax1 = fig.add_subplot(111)
-ax1.set_ylim([0.7,1])
-ax1.set_xlim([1.2,1.45])
+ax1.set_ylim([0.4,1])
+ax1.set_xlim([1.1,1.6])
 
 ax1.autoscale(False)
 cPlot = plt.imshow(imArr, origin='lower', extent=(min(xi), max(xi), min(yi), max(yi)))
@@ -214,6 +215,5 @@ plt.xlabel('$k_{x}$')
 plt.ylabel('$KE0 / KE0_{lam}$')
 plt.show()
 
-fig.savefig('b{b}_Wi{Wi}_N{N}_M{M}_bifurcation_map.pdf'.format(b=beta, Wi=Wi,
-                                                               N=N, M=M))
+fig.savefig('b{b}_Wi{Wi}_pv_bifurcation_map.pdf'.format(b=beta, Wi=Wi))
 

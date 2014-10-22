@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Plane Poiseuille flow time iteration
 #
-#   Last modified: Mon 21 Jul 15:38:13 2014
+#   Last modified: Wed 22 Oct 14:10:23 2014
 #
 #-----------------------------------------------------------------------------
 
@@ -246,22 +246,6 @@ def step_PSI(PSIOld, PsiOpInvList, Psi0thOp, time, _dt):
 
     return PSI
 
-def solve_stress_eqns(PSI, stressVec):
-    """
-    Returns the time derivative of the stresses given the current state of the
-    flow. Uses the Streamfunction at the correct time.
-    """
-
-    CxxOld = stressVec[0:vecLen]
-    CyyOld = stressVec[vecLen:2*vecLen]
-    CxyOld = stressVec[2*vecLen:3*vecLen]
-
-    MMCXX = tsm.c_prod_mat(CxxOld)
-    MMCYY = tsm.c_prod_mat(CyyOld)
-    MMCXY = tsm.c_prod_mat(CxyOld)
-
-    # SET UP VELOCITIES (inefficient, but at least it is correct) 
-    # TODO: Find a way to do this only once for streamfunction and stress
     # calculations.
 
     U = dot(MDY, PSI)
@@ -282,16 +266,31 @@ def solve_stress_eqns(PSI, stressVec):
     SVNew = zeros(3*vecLen, dtype='D')
 
     #dCxxdt 
-    SVNew[:vecLen] = 2*dot(MMCXX, dot(MDX, U)) + 2*dot(MMCXY, dot(MDY, U))\
-                     - dot(VGRAD, CxxOld) - TxxOld 
+    # - kx
+    SVNew[:(N+1)*M] = 2*dot(MMCXX, dot(MDX, U))[:(N+1)*M]\
+                + 2*dot(MMCXY, dot(MDY, U))[:(N+1)*M]\
+                - dot(VGRAD, CxxOld)[:(N+1)*M] - TxxOld[:(N+1)*M]
+
+    # + kx
+    SVNew[(N+1)*M:vecLen] = conj(SVNew[:N*M])
+
     #dCyydt
-    SVNew[vecLen:2*vecLen] = + 2*dot(MMCXY, dot(MDX, V)) \
-                             + 2*dot(MMCYY, dot(MDY, V)) \
-                             - dot(VGRAD, CyyOld) - TyyOld
+    # - kx
+    SVNew[vecLen:vecLen + (N+1)*M] = + 2*dot(MMCXY, dot(MDX, V))[:(N+1)*M] \
+                                 + 2*dot(MMCYY, dot(MDY, V))[:(N+1)*M] \
+                                 - dot(VGRAD, CyyOld)[:(N+1)*M] - TyyOld[:(N+1)*M]
+
+    # + kx
+    SVNew[vecLen + (N+1)*M : 2*vecLen] = conj(SVNew[vecLen : vecLen + N*M])
+
     #dCxydt
-    SVNew[2*vecLen:3*vecLen] = dot(MMCXX, dot(MDX, V)) \
-                              + dot(MMCYY, dot(MDY, U))\
-                              - dot(VGRAD, CxyOld) - TxyOld
+    # - kx
+    SVNew[2*vecLen:2*vecLen + (N+1)*M] = dot(MMCXX, dot(MDX, V))[:(N+1)*M] \
+                                     + dot(MMCYY, dot(MDY, U))[:(N+1)*M]\
+                                     - dot(VGRAD, CxyOld)[:(N+1)*M] - TxyOld[:(N+1)*M]
+
+    # + kx
+    SVNew[2*vecLen + (N+1)*M : 3*vecLen] = conj(SVNew[2*vecLen : 2*vecLen + N*M])
     
     return SVNew
 
