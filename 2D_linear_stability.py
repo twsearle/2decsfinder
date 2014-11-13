@@ -1,7 +1,7 @@
 #----------------------------------------------------------------------------#
 #   Fully spectral linear stability analysis of a 2D exact solution
 #
-#   Last modified: Tue  7 Oct 12:45:15 2014
+#   Last modified: Thu 13 Nov 14:26:35 2014
 #
 #
 #----------------------------------------------------------------------------#
@@ -18,6 +18,7 @@ import sys
 import time
 from scipy import *
 from scipy import linalg
+from scipy.sparse import linalg as sparselinalg
 import cPickle as pickle
 import ConfigParser
 import argparse
@@ -62,6 +63,11 @@ argparser.add_argument("-evecs",
                        action="store_true")
 argparser.add_argument("-NumEvecs", type=int, default=5, 
 help="If eigenvectors are to be outputted, change the number of leading eigenvectors")
+
+argparser.add_argument("-eigGuess", type=complex, default=None,
+                help = 'use Arnoldi iteration for first 4 eigenvalues,'+\
+                       ' this is the guess for the shift invert.')
+
 
 args = argparser.parse_args()
 N = args.N 
@@ -386,74 +392,139 @@ del i
 
 if args.evecs:
     print 'finding eigenvectors and eigenvalues'
-    # Use library function to solve for eigenvalues/vectors
-    print 'in linalg.eig time=', (time.time() - startTime)
-    eigenvals, evecs = linalg.eig(equations_matrix, RHS, overwrite_a=True)
 
-    # Save output
+    if args.eigGuess:
 
-    #make large_evs, as large as eigenvals, but only contains real part of large, 
-    #physical eigenvalues. Rest are zeros. Index of large_evs same as that of 
-    #eigenvalues 
-    large_evs = zeros(len(eigenvals))
-    for i in xrange(10*(2*N+1)*M):
-        if (real(eigenvals[i]) > 0) and (real(eigenvals[i]) < 50):
-            large_evs[i] = real(eigenvals[i])
-    del i
     
-    # sort the eigenvalues in large_evs so that the last NumEvecs are the
-    # largest
+        print 'in sparse.linalg.eigs', (time.time()-startTime)
+        print 'Shift-invert for ', args.eigGuess
+        eigenvals, evecs = sparselinalg.eigs(equations_matrix, k=args.NumEvecs, M=RHS, 
+                                       sigma = args.eigGuess, which='LR', 
+                                       return_eigenvectors=True)
 
-    large_evs = sort(large_evs)
+        # Save output
 
-    eigarray = vstack((real(eigenvals), imag(eigenvals))).T
-    #remove nans and infs from eigenvalues
-    #eigarray = eigarray[~isnan(eigarray).any(1), :]
-    #eigarray = eigarray[~isinf(eigarray).any(1), :]
+        eigarray = vstack((real(eigenvals), imag(eigenvals))).T
 
-    savetxt('ev-kz{kz}{fn}.dat'.format(kz=kz, fn=filename[:-7],
-                                                 ), eigarray)
+        savetxt('ev-kz'+str(kz)+filename[:-7]+'SPARSE.dat', eigarray)
 
-    for evec_index in range(args.NumEvecs): 
+        #make large_evs, as large as eigenvals, but only contains real part of large, 
+        #physical eigenvalues. Rest are zeros. Index of large_evs same as that of 
+        #eigenvalues 
+        large_evs = real(eigenvals)
 
-        len_levs = len(large_evs)
-        lead_index = large_evs[len_levs - 1 - evec_index]
+        # find the argument for the leading eigenvectors
+        index_list = argsort(large_evs)[::-1]
+        print 'list of eigenvalues found: \n', large_evs[index_list]
 
-        print 'chosen eig: {e}'.format(e=lead_index)
-        du =   evecs[           :(2*N+1)*M,   lead_index]
-        dv =   evecs[  (2*N+1)*M:2*(2*N+1)*M, lead_index]
-        dw =   evecs[2*(2*N+1)*M:3*(2*N+1)*M, lead_index]
-        dp =   evecs[3*(2*N+1)*M:4*(2*N+1)*M, lead_index]
-        dcxx = evecs[4*(2*N+1)*M:5*(2*N+1)*M, lead_index]
-        dcyy = evecs[5*(2*N+1)*M:6*(2*N+1)*M, lead_index]
-        dczz = evecs[6*(2*N+1)*M:7*(2*N+1)*M, lead_index]
-        dcxy = evecs[7*(2*N+1)*M:8*(2*N+1)*M, lead_index]
-        dcxz = evecs[8*(2*N+1)*M:9*(2*N+1)*M, lead_index]
-        dcyz = evecs[9*(2*N+1)*M:10*(2*N+1)*M, lead_index]
+        for evec_index in range(args.NumEvecs): 
 
-        Nux = Nu
-        Nuz = eigarray[lead_index, 1] / kz
+            lead_index = index_list[evec_index]
 
-        pickle.dump((Nux,Nuz,du,dv,dw,dp,dcxx,dcyy,dczz,dcxy,dcxz,dcyz), 
-                    open('full-evecs-{n}-kz{kz}{fn}'.format(n=evec_index, kz=kz,fn=filename), 'w'))
+            print 'chosen eig: {e}'.format(e=evec_index)
+            print 'chosen eigenvalue: ', eigenvals[lead_index]
 
+            du =   evecs[           :(2*N+1)*M,   lead_index]
+            dv =   evecs[  (2*N+1)*M:2*(2*N+1)*M, lead_index]
+            dw =   evecs[2*(2*N+1)*M:3*(2*N+1)*M, lead_index]
+            dp =   evecs[3*(2*N+1)*M:4*(2*N+1)*M, lead_index]
+            dcxx = evecs[4*(2*N+1)*M:5*(2*N+1)*M, lead_index]
+            dcyy = evecs[5*(2*N+1)*M:6*(2*N+1)*M, lead_index]
+            dczz = evecs[6*(2*N+1)*M:7*(2*N+1)*M, lead_index]
+            dcxy = evecs[7*(2*N+1)*M:8*(2*N+1)*M, lead_index]
+            dcxz = evecs[8*(2*N+1)*M:9*(2*N+1)*M, lead_index]
+            dcyz = evecs[9*(2*N+1)*M:10*(2*N+1)*M, lead_index]
+
+            Nux = Nu
+            Nuz = eigarray[lead_index, 1] / kz
+
+            pickle.dump((Nux,Nuz,du,dv,dw,dp,dcxx,dcyy,dczz,dcxy,dcxz,dcyz), 
+                        open('full-spseEvecs-{n}-kz{kz}{fn}'.format(n=evec_index, kz=kz,fn=filename), 'w'))
+
+    else: 
+
+        # Use library function to solve for eigenvalues/vectors
+        print 'in linalg.eig time=', (time.time() - startTime)
+        eigenvals, evecs = linalg.eig(equations_matrix, RHS, overwrite_a=True)
+
+        # Save output
+
+        #make large_evs, as large as eigenvals, but only contains real part of large, 
+        #physical eigenvalues. Rest are zeros. Index of large_evs same as that of 
+        #eigenvalues 
+        large_evs = zeros(len(eigenvals))
+        for i in xrange(10*(2*N+1)*M):
+            if (real(eigenvals[i]) > 0) and (real(eigenvals[i]) < 50):
+                large_evs[i] = real(eigenvals[i])
+                del i
+
+        # find the argument for the leading eigenvectors
+        index_list = argsort(large_evs)[::-1]
+
+        eigarray = vstack((real(eigenvals), imag(eigenvals))).T
+        #remove nans and infs from eigenvalues
+        #eigarray = eigarray[~isnan(eigarray).any(1), :]
+        #eigarray = eigarray[~isinf(eigarray).any(1), :]
+
+        savetxt('ev-kz{kz}{fn}.dat'.format(kz=kz, fn=filename[:-7],
+                                          ), eigarray)
+
+        for evec_index in range(args.NumEvecs): 
+
+            lead_index = index_list[evec_index]
+
+            print 'chosen eig: {e}'.format(e=lead_index)
+            print 'chosen eigenvalue: ', eigenvals[lead_index]
+            du =   evecs[           :(2*N+1)*M,   lead_index]
+            dv =   evecs[  (2*N+1)*M:2*(2*N+1)*M, lead_index]
+            dw =   evecs[2*(2*N+1)*M:3*(2*N+1)*M, lead_index]
+            dp =   evecs[3*(2*N+1)*M:4*(2*N+1)*M, lead_index]
+            dcxx = evecs[4*(2*N+1)*M:5*(2*N+1)*M, lead_index]
+            dcyy = evecs[5*(2*N+1)*M:6*(2*N+1)*M, lead_index]
+            dczz = evecs[6*(2*N+1)*M:7*(2*N+1)*M, lead_index]
+            dcxy = evecs[7*(2*N+1)*M:8*(2*N+1)*M, lead_index]
+            dcxz = evecs[8*(2*N+1)*M:9*(2*N+1)*M, lead_index]
+            dcyz = evecs[9*(2*N+1)*M:10*(2*N+1)*M, lead_index]
+
+            Nux = Nu
+            Nuz = eigarray[lead_index, 1] / kz
+
+            pickle.dump((Nux,Nuz,du,dv,dw,dp,dcxx,dcyy,dczz,dcxy,dcxz,dcyz), 
+                        open('full-evecs-{n}-kz{kz}{fn}'.format(n=evec_index, kz=kz,fn=filename), 'w'))
 
 
 else:
     # eigenvalues only
     print 'finding eigenvalues only'
-    # Use library function to solve for eigenvalues/vectors
-    print 'in linalg.eig time=', (time.time() - startTime)
-    eigenvals = linalg.eigvals(equations_matrix, RHS, overwrite_a=True)
 
-    # Save output
+    if args.eigGuess:
 
-    eigarray = vstack((real(eigenvals), imag(eigenvals))).T
-    #remove nans and infs from eigenvalues
-    eigarray = eigarray[~isnan(eigarray).any(1), :]
-    eigarray = eigarray[~isinf(eigarray).any(1), :]
+        print 'in sparse.linalg.eigs', (time.time()-startTime)
+        print 'Shift-invert for ', args.eigGuess
+        eigenvals = sparselinalg.eigs(equations_matrix, k=5, M=RHS, 
+                                       sigma = args.eigGuess, which='LR', 
+                                       return_eigenvectors=False)
 
-    savetxt('ev-kz'+str(kz)+filename[:-7]+'.dat', eigarray)
+        # Save output
+
+        eigarray = vstack((real(eigenvals), imag(eigenvals))).T
+
+        savetxt('ev-kz'+str(kz)+filename[:-7]+'SPARSE.dat', eigarray)
+
+    else:
+
+        # Use library function to solve for all eigenvalues/vectors
+        print 'in linalg.eig time=', (time.time() - startTime)
+        eigenvals = linalg.eigvals(equations_matrix, RHS, overwrite_a=True)
+
+        # Save output
+
+        eigarray = vstack((real(eigenvals), imag(eigenvals))).T
+        #remove nans and infs from eigenvalues
+        eigarray = eigarray[~isnan(eigarray).any(1), :]
+        eigarray = eigarray[~isinf(eigarray).any(1), :]
+
+        savetxt('ev-kz'+str(kz)+filename[:-7]+'.dat', eigarray)
 
     #stop the clock
     print 'done in', (time.time()-startTime)
