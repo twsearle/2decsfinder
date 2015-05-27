@@ -1,7 +1,7 @@
 #-----------------------------------------------------------------------------
 #   2D Plane Poiseuille flow time iteration
 #
-#   Last modified: Wed 22 Oct 14:10:23 2014
+#   Last modified: Mon  9 Mar 12:21:57 2015
 #
 #-----------------------------------------------------------------------------
 
@@ -34,7 +34,7 @@ beta = config.getfloat('General', 'beta')
 kx = config.getfloat('General', 'kx')
 
 dt = config.getfloat('Time Iteration', 'dt')
-amp = config.getfloat('Time Iteration', 'amp')
+amp = 1e-8
 totTime = config.getfloat('Time Iteration', 'totTime')
 numFrames = config.getint('Time Iteration', 'numFrames')
 fp.close()
@@ -126,6 +126,51 @@ def iplct_euler_step(stressVec, dt):
     SVNew[2*vecLen:3*vecLen] = linalg.solve(CxyOp, CxyOld + AAA*dt)
 
     return SVNew
+
+def solve_stress_eqns(PSI, stressVec):
+    """
+    Returns the time derivative of the stresses given the current state of the
+    flow.
+    """
+
+    U = dot(MDY, PSI)
+    V = - dot(MDX, PSI)    
+    MMU = tsm.c_prod_mat(U)
+    MMV = tsm.c_prod_mat(V)
+
+    # set up gradient operator
+    VGRAD = dot(MMU, MDX) + dot(MMV, MDY)
+    CxxOld = stressVec[0:vecLen]
+    CyyOld = stressVec[vecLen:2*vecLen]
+    CxyOld = stressVec[2*vecLen:3*vecLen]
+
+    MMCXX = tsm.c_prod_mat(CxxOld)
+    MMCYY = tsm.c_prod_mat(CyyOld)
+    MMCXY = tsm.c_prod_mat(CxyOld)
+
+    # Calculate polymeric stress components
+    TxxOld = oneOverWi*CxxOld
+    TxxOld[N*M] += -oneOverWi
+    TyyOld = oneOverWi*CyyOld
+    TyyOld[N*M] += -oneOverWi
+    TxyOld = oneOverWi*CxyOld
+    
+    SVNew = zeros(3*vecLen, dtype='D')
+
+    #dCxxdt 
+    SVNew[:vecLen] = 2*dot(MMCXX, dot(MDX, U)) + 2*dot(MMCXY, dot(MDY, U))\
+                     - dot(VGRAD, CxxOld) - TxxOld 
+    #dCyydt
+    SVNew[vecLen:2*vecLen] = + 2*dot(MMCXY, dot(MDX, V)) \
+                             + 2*dot(MMCYY, dot(MDY, V)) \
+                             - dot(VGRAD, CyyOld) - TyyOld
+    #dCxydt
+    SVNew[2*vecLen:3*vecLen] = dot(MMCXX, dot(MDX, V)) \
+                              + dot(MMCYY, dot(MDY, U))\
+                              - dot(VGRAD, CxyOld) - TxyOld
+    
+    return SVNew
+
 
 def form_operators(_dt):
     """
