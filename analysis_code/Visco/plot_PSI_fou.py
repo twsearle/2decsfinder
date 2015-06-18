@@ -26,6 +26,8 @@ config.readfp(fp)
 N = config.getint('General', 'N')
 M = config.getint('General', 'M')
 Re = config.getfloat('General', 'Re')
+beta = config.getfloat('General', 'beta')
+Wi = config.getfloat('General', 'Wi')
 kx = config.getfloat('General', 'kx')
 
 totTime = config.getfloat('Time Iteration', 'totTime')
@@ -37,10 +39,10 @@ numYs = 2*M
 numTimeSteps = int(totTime / dt)
 assert totTime % dt, "non-integer number of time steps!"
 
-kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx,'time': numTimeSteps*dt }
-baseFileName  = "-N{N}-M{M}-kx{kx}-Re{Re}.pickle".format(**kwargs)
-
-inFileName = "psi{0}".format(baseFileName)
+kwargs = {'N': N, 'M': M, 'Re': Re, 'kx': kx, 'beta':beta, 'Wi':Wi, 'time': numTimeSteps*dt }
+baseFileName  = "-N{N}-M{M}-kx{kx}-Re{Re}-b{beta}-Wi{Wi}.pickle".format(**kwargs)
+ 
+inFileName = "pf_sl{0}".format(baseFileName)
 
 # SETUP ARGUMENT PARSER
 
@@ -110,7 +112,7 @@ oneOverC[0] = 1. / 2.
 CFunc = ones(M)
 CFunc[0] = 2.
 Psi = zeros((2*N+1)*M, dtype='complex')
-Psi = pickle.load(open(inFileName, 'r'))
+Psi,_,_,_ = pickle.load(open(inFileName, 'r'))
 
 y_points = zeros(numYs, dtype='d')
 for yIndx in range(numYs):
@@ -156,6 +158,6 @@ for n in range(N,2*N+1):
     plt.plot(y_points, imag(PSIdx), 'r-')
     plt.title(titleString)
     plt.savefig(r'psi{n}.pdf'.format(n=n-N))
-    plt.show()
+    plt.show(block=True)
 
 #savetxt('test.dat', vstack((real(PSIr1), imag(PSIr1))).T)
