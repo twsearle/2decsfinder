@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 #   colour map plotter for 2D coherent state finder
 #
-#   Last modified: Thu  6 Nov 16:47:59 2014
+#   Last modified: Mon 17 Feb 20:41:50 2020
 #
 #------------------------------------------------------------------------------
 #TODO check that the axes are the right way up?
@@ -33,6 +33,7 @@ Wi   = config.getfloat('General', 'Wi')
 kx = config.getfloat('General', 'kx')
 numYs = config.getint('Plotting', 'numYs')
 numXs = config.getint('Plotting', 'numXs')
+inPath = config.get('Plotting', 'inputs path')
 
 fp.close()
 
@@ -121,7 +122,9 @@ def fast_fourier_cheb_transform(vec, x_points, y_points) :
 #Psi[(N-1)*M:N*M] = amp*pickle.load(open(inFileName, 'r'))
 #Psi[(N+1)*M:(N+2)*M] = amp*conjugate(Psi[(N-1)*M:N*M])
 
-(Psi, Cxx, Cyy, Cxy, Nu) = pickle.load(open(inFileName, 'r'))
+path = inPath + "/" + inFileName
+with open(path, 'r') as fp:
+    (Psi, Cxx, Cyy, Cxy, Nu) = pickle.load(fp)
 
 #PSI0 = zeros((2*N+1)*M, dtype='complex')
 #PSI0[N*M]   = -2.0/3.0
